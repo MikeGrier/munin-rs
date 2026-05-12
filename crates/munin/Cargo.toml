@@ -1,0 +1,23 @@
+# Copyright (c) Michael Grier
+
+[package]
+name          = "munin"
+description   = "Reader and seekable indexed data model for MSBuild binary log (.binlog) files."
+keywords      = ["msbuild", "binlog", "build", "parser", "dotnet"]
+categories    = ["parser-implementations", "development-tools"]
+readme        = "README.md"
+exclude       = ["tests/data/*", "CHECKLIST.md", "COMPLETED-CHECKLIST.md", "DESIGN-NOTES.md"]
+version.workspace       = true
+authors.workspace       = true
+edition.workspace       = true
+rust-version.workspace  = true
+license.workspace       = true
+repository.workspace    = true
+homepage.workspace      = true
+documentation.workspace = true
+
+[dependencies]
+flate2 = "1"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+
+[dev-dependencies]

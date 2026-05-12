@@ -1,0 +1,30 @@
+# Copyright (c) Michael Grier
+
+[package]
+name          = "munin-binlog-mcp"
+description   = "MCP (Model Context Protocol) server for querying MSBuild binary log (.binlog) files."
+keywords      = ["mcp", "msbuild", "binlog", "copilot", "ai"]
+categories    = ["command-line-utilities", "development-tools"]
+readme        = "README.md"
+exclude       = ["extension/", "tests/", "COMPLETED-CHECKLIST.md", "DESIGN-NOTES.md"]
+version.workspace       = true
+authors.workspace       = true
+edition.workspace       = true
+rust-version.workspace  = true
+license.workspace       = true
+repository.workspace    = true
+homepage.workspace      = true
+documentation.workspace = true
+
+[lib]
+name = "munin_binlog_mcp"
+path = "src/lib.rs"
+
+[[bin]]
+name = "munin-binlog-mcp"
+path = "src/main.rs"
+
+[dependencies]
+munin       = { path = "../munin", version = "0.1.0" }
+serde       = { workspace = true }
+serde_json  = { workspace = true }

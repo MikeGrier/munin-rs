@@ -19,3 +19,11 @@ target
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
+
+# VS Code extension build artefacts
+crates/munin-binlog-mcp/extension/node_modules/
+crates/munin-binlog-mcp/extension/out/
+crates/munin-binlog-mcp/extension/bin/*.exe
+crates/munin-binlog-mcp/extension/bin/munin-binlog-mcp
+crates/munin-binlog-mcp/extension/bin/VERSION
+crates/munin-binlog-mcp/extension/*.vsix

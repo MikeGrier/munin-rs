@@ -1,0 +1,272 @@
+# Copyright (c) Michael Grier
+name: publish-extension
+
+# Publish per-platform VSIXes for the munin-binlog-mcp VS Code extension to the
+# public Marketplace and attach them to a GitHub Release.
+#
+# Trigger:
+#   - Pushing a tag matching `v*` (e.g. `v0.1.3`); created automatically
+#     by release-please when the Release PR is merged.
+#   - `workflow_dispatch` for manual rehearsal (publish step still gated).
+#
+# Gating:
+#   - The `publish` job uses `environment: marketplace`. That GitHub
+#     environment is configured (one-time, by the operator) with
+#     `MikeGrier` as a required reviewer and the `VSCE_PAT` secret set to
+#     a Marketplace PAT (Azure DevOps -> User settings -> PATs, scope
+#     `Marketplace -> Manage`). The publish step blocks on approval.
+#
+# Why rebuild instead of downloading from `build-extension.yml`?
+#   - Tag pushes do not carry artifacts from arbitrary prior runs, and
+#     `actions/download-artifact` cross-workflow needs extra plumbing
+#     (artifact retention, run-id discovery) that is brittle around
+#     branch-vs-tag SHAs. Rebuilding from the tagged commit is hermetic
+#     and matches what `build-extension.yml` already validated on the
+#     merge commit.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      pre_release:
+        description: "Publish as a Marketplace pre-release (use for odd-minor versions only)"
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: write   # needed to create the GitHub Release
+
+# Opt every JavaScript-action step into the Node.js 24 runtime ahead of
+# GitHub's June 2, 2026 forced cutover.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  package:
+    name: package (${{ matrix.vscode_target }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - vscode_target: win32-x64
+            rust_target: x86_64-pc-windows-msvc
+          - vscode_target: win32-arm64
+            rust_target: aarch64-pc-windows-msvc
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Rust toolchain (${{ matrix.rust_target }})
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: publish-${{ matrix.rust_target }}
+
+      - name: cargo build --release munin-binlog-mcp
+        run: cargo build --release -p munin-binlog-mcp --target ${{ matrix.rust_target }} --locked
+
+      - name: cargo test munin-binlog-mcp (host arch only)
+        if: matrix.rust_target == 'x86_64-pc-windows-msvc'
+        run: cargo test -p munin-binlog-mcp --target ${{ matrix.rust_target }} --locked
+
+      - name: Read workspace version
+        id: workspace-version
+        uses: ./.github/actions/workspace-version
+
+      - name: Stage binary into extension/bin/
+        shell: pwsh
+        run: |
+          $src = "target/${{ matrix.rust_target }}/release/munin-binlog-mcp.exe"
+          $dst = "crates/munin-binlog-mcp/extension/bin/munin-binlog-mcp.exe"
+          Copy-Item $src $dst -Force
+          $ver = "${{ steps.workspace-version.outputs.version }}"
+          # Cross-check 1: tag must agree with the workspace Cargo version.
+          $tag = "${{ github.ref_name }}"
+          # Only cross-check when an actual tag was pushed (not on workflow_dispatch
+          # from a branch whose name happens to start with "v").
+          if ("${{ github.ref_type }}" -eq "tag" -and $tag -like "v*") {
+              $tagVer = $tag.Substring("v".Length)
+              if ($tagVer -ne $ver) {
+                  throw "Tag '$tag' implies version '$tagVer' but Cargo.toml has '$ver'. Update [workspace.package] version in the root Cargo.toml (or rerun release-please), retag, and try again."
+              }
+          }
+          # Cross-check 2: package.json must agree with the workspace version.
+          # release-please keeps these in sync via extra-files, but this
+          # catches any drift before vsce packages the wrong version.
+          $pkgJson = Get-Content -Raw "crates/munin-binlog-mcp/extension/package.json" | ConvertFrom-Json
+          $pkgVer = $pkgJson.version
+          if ($pkgVer -ne $ver) {
+              throw "package.json version '$pkgVer' does not match workspace version '$ver'. Ensure release-please updated package.json via extra-files, retag, and try again."
+          }
+          Set-Content -NoNewline -Encoding ascii `
+              -Path crates/munin-binlog-mcp/extension/bin/VERSION -Value $ver
+          "Staged munin-binlog-mcp $ver for ${{ matrix.vscode_target }}"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: npm ci (extension)
+        working-directory: crates/munin-binlog-mcp/extension
+        run: npm ci --no-audit --no-fund
+
+      - name: Compile TypeScript
+        working-directory: crates/munin-binlog-mcp/extension
+        run: npm run compile
+
+      - name: Compute pre-release flag
+        id: prerelease
+        env:
+          PRE_RELEASE_INPUT: ${{ github.event.inputs.pre_release || 'false' }}
+          REF_NAME: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # vsce requires --pre-release at BOTH package and publish time;
+          # passing it only to publish errors with "Cannot use '--pre-release'
+          # flag with a package that was not packaged as pre-release". So we
+          # decide once here and propagate the result through job outputs.
+          pre="false"
+          if [ "${PRE_RELEASE_INPUT:-false}" = "true" ]; then
+              pre="true"
+          elif [ "${REF_TYPE:-}" = "tag" ] && [[ "${REF_NAME}" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+              minor="${BASH_REMATCH[2]}"
+              if (( minor % 2 == 1 )); then
+                  pre="true"
+              fi
+          fi
+          echo "pre_release=${pre}" >> "$GITHUB_OUTPUT"
+          echo "pre_release=${pre}"
+
+      - name: vsce package --target ${{ matrix.vscode_target }}
+        working-directory: crates/munin-binlog-mcp/extension
+        env:
+          PRE_RELEASE: ${{ steps.prerelease.outputs.pre_release }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          pre_flag=""
+          if [ "${PRE_RELEASE:-false}" = "true" ]; then
+              pre_flag="--pre-release"
+          fi
+          npx vsce package $pre_flag --target ${{ matrix.vscode_target }} --no-dependencies
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: munin-binlog-mcp-${{ matrix.vscode_target }}
+          path: crates/munin-binlog-mcp/extension/*.vsix
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: publish to Marketplace
+    needs: package
+    runs-on: ubuntu-latest
+    # `marketplace` is a GitHub Actions environment with `MikeGrier` as a
+    # required reviewer and `VSCE_PAT` configured as a secret. The job
+    # pauses here until a maintainer approves it in the GitHub UI.
+    environment: marketplace
+
+    steps:
+      - name: Checkout (for README, vsce metadata)
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Install @vscode/vsce
+        working-directory: crates/munin-binlog-mcp/extension
+        # We only need vsce here; `npm ci` to get the same locked version
+        # that built the VSIXes (avoids accidental version skew between
+        # packaging and publishing).
+        run: npm ci --no-audit --no-fund
+
+      - name: Download VSIX artifacts
+        uses: actions/download-artifact@v5
+        with:
+          path: vsix
+          # Each matrix leg uploaded as `munin-binlog-mcp-<vscode_target>`; download
+          # them all into `vsix/<artifact-name>/*.vsix`.
+
+      - name: List VSIXes
+        shell: bash
+        run: |
+          set -euo pipefail
+          find vsix -name '*.vsix' -print
+          test "$(find vsix -name '*.vsix' | wc -l)" -ge 1
+
+      - name: vsce publish (per VSIX)
+        working-directory: crates/munin-binlog-mcp/extension
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          PRE_RELEASE_INPUT: ${{ github.event.inputs.pre_release || 'false' }}
+          REF_NAME: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${VSCE_PAT:-}" ]; then
+              echo "::error::VSCE_PAT secret is not set on the 'marketplace' environment"
+              exit 1
+          fi
+          # Decide whether this is a pre-release publish.
+          #   workflow_dispatch: caller-supplied `pre_release` boolean wins.
+          #   tag push (v*):     auto-detect via VS Code's minor-version
+          #                      convention -- odd minor = pre-release,
+          #                      even minor = stable. So v0.3.1 -> pre-release,
+          #                      v0.4.0 -> stable.
+          pre_flag=""
+          if [ "${PRE_RELEASE_INPUT:-false}" = "true" ]; then
+              pre_flag="--pre-release"
+              echo "Publishing as Marketplace pre-release (workflow_dispatch input)"
+          elif [ "${REF_TYPE:-}" = "tag" ] && [[ "${REF_NAME}" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+              minor="${BASH_REMATCH[2]}"
+              if (( minor % 2 == 1 )); then
+                  pre_flag="--pre-release"
+                  echo "Publishing as Marketplace pre-release (odd minor ${minor} in tag ${REF_NAME})"
+              else
+                  echo "Publishing as Marketplace stable (even minor ${minor} in tag ${REF_NAME})"
+              fi
+          fi
+          # Publish each per-target VSIX. `vsce publish --packagePath`
+          # uploads an already-built VSIX rather than repackaging, which
+          # is exactly what we want here -- the binary inside was built
+          # and tested by the matching `package` matrix leg.
+          shopt -s nullglob
+          published=0
+          for vsix in ../../../vsix/*/*.vsix; do
+              echo "Publishing $vsix"
+              npx vsce publish $pre_flag --packagePath "$vsix" --pat "$VSCE_PAT"
+              published=$((published + 1))
+          done
+          if [ "$published" -eq 0 ]; then
+              echo "::error::No VSIX files found to publish"
+              exit 1
+          fi
+          echo "Published $published VSIX(es)"
+
+      - name: Create GitHub Release with VSIX attachments
+        # Only on tag pushes. `workflow_dispatch` runs publish to
+        # Marketplace but does not create a Release (no tag to attach to).
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: vsix/*/*.vsix
+          fail_on_unmatched_files: true
