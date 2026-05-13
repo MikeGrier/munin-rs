@@ -17,6 +17,7 @@
 //! - `binlog_error_context`  — surrounding events for a given error
 //! - `binlog_task_timeline`  — chronological task list with success/failure status
 //! - `binlog_feedback`       — append structured feedback to JSONL file
+//! - `binlog_setup`          — emit canonical Copilot-instructions text
 
 use std::{collections::HashMap, fmt::Write as _, fs::File, io::BufReader};
 
@@ -25,6 +26,94 @@ use munin::{
     reader::BinlogEvent, record_kind::BinaryLogRecordKind,
 };
 use serde_json::Value;
+
+// ── setup-tool content ────────────────────────────────────────────────────────
+
+/// Short snippet for the repo's main Copilot instructions file
+/// (`.github/copilot-instructions.md`). Kept under ~100 words and focused on
+/// the two facts an agent must know: *use the binlog MCP*, and *enable
+/// binary logging when the user runs MSBuild*. The full tool list, trigger
+/// keywords, and workflow live in [`BINLOG_SETUP_FULL`] so this stub stays
+/// short and stable.
+const BINLOG_SETUP_SHORT: &str = "\
+## MSBuild binary logs \u{2014} use the munin-binlog MCP
+
+When diagnosing any MSBuild, `dotnet build`, `dotnet test`, NuGet restore, or \
+Visual Studio build problem, use the `binlog_*` MCP tools to inspect the \
+`.binlog` rather than re-running the build or scraping console output.
+
+When invoking MSBuild yourself (or asking the user to), always enable binary \
+logging: `dotnet build -bl:msbuild.binlog` or `msbuild /bl:msbuild.binlog`. \
+Then call `binlog_open` on the resulting file.
+
+See [.github/instructions/munin-binlog-mcp.instructions.md](.github/instructions/munin-binlog-mcp.instructions.md) \
+for the full tool list, trigger keywords, and recommended workflow.
+";
+
+/// Full instructions file written to
+/// `.github/instructions/munin-binlog-mcp.instructions.md`. Loaded
+/// automatically by VS Code via the `applyTo: '**'` frontmatter so the
+/// trigger-keyword block is always available to the model.
+const BINLOG_SETUP_FULL: &str = "\
+---
+applyTo: '**'
+---
+# munin-binlog-mcp \u{2014} MSBuild binary log analysis
+
+**Trigger keywords** (use the `binlog_*` tools whenever the user mentions any \
+of these): MSBuild, msbuild.exe, `dotnet build`, `dotnet publish`, \
+`dotnet test`, `dotnet restore`, NuGet restore, Visual Studio build, \
+`.binlog`, binary log, structured log, MSBuild SDK, target/task ordering, \
+incremental build, `Directory.Build.props`, `Directory.Packages.props`, \
+project SDK, build failure, slow build, 'works on my machine' build, \
+`/bl`, `-bl`.
+
+## Producing a binlog
+
+If the user does not have a `.binlog` file yet, ask them to re-run the \
+failing build with binary logging enabled:
+
+- `dotnet build -bl:msbuild.binlog` \u{2014} writes `msbuild.binlog` in the \
+  current directory.
+- `msbuild /bl:msbuild.binlog` \u{2014} same, for full-Framework MSBuild.
+- Visual Studio: install the *MSBuild Binary and Structured Log Viewer* \
+  extension, or set `MSBuildDebugEngine=1`.
+
+## Tools
+
+| Tool | Purpose |
+|---|---|
+| `binlog_open` | Open a `.binlog`, return a session handle + summary. Always first. |
+| `binlog_close` | Release a session. |
+| `binlog_summary` | Build success/failure, project list, error/warning counts. |
+| `binlog_errors` | All Error events with code, file, line, message, project. |
+| `binlog_warnings` | Warning events, optionally filtered by `code` or `project`. |
+| `binlog_project_tree` | Hierarchical project / target / task view. |
+| `binlog_events` | Filtered event listing (kind, project, target, task, text). |
+| `binlog_event_detail` | Full detail for one event by index. |
+| `binlog_properties` | MSBuild properties from ProjectStarted events. |
+| `binlog_items` | Item groups (Compile, Reference, PackageReference, ...). |
+| `binlog_error_context` | Surrounding events for a given error index. |
+| `binlog_task_timeline` | Chronological task list with success/failure status. |
+| `binlog_feedback` | Append structured analysis notes to a JSONL file. |
+
+## Recommended workflow
+
+1. `binlog_open` with the absolute path. Keep the returned `session` handle.
+2. `binlog_summary` to confirm overall success/failure and project list.
+3. **Failures:** `binlog_errors` first, then `binlog_error_context` and/or \
+   `binlog_event_detail` on the most relevant error indices.
+4. **Warnings or noise:** `binlog_warnings` (filter by `code` or `project`).
+5. **'Why did MSBuild do X?'**: `binlog_project_tree`, `binlog_task_timeline`, \
+   `binlog_properties`, `binlog_items`, or `binlog_events` with filters.
+6. `binlog_close` when finished, or leave open if more questions are likely.
+
+## Citation rule
+
+Always cite the binlog as the source of any diagnostic claim (error code, \
+file/line, task that failed, property value). If a binlog field contradicts \
+the user's assumption, surface the contradiction explicitly.
+";
 
 // ── session management ────────────────────────────────────────────────────────
 
@@ -529,6 +618,27 @@ pub fn list() -> Value {
                 "required": ["session", "file", "text"]
             },
             "annotations": { "readOnlyHint": false, "destructiveHint": false }
+        },
+        {
+            "name": "binlog_setup",
+            "description":
+                "Returns the canonical munin-binlog-mcp instructions to add to \
+                 this repository so future Copilot sessions automatically reach \
+                 for the binlog tools when diagnosing MSBuild / dotnet build / \
+                 Visual Studio build problems. The output contains TWO files: a \
+                 short stub to append to `.github/copilot-instructions.md` and a \
+                 full instructions file to write to \
+                 `.github/instructions/munin-binlog-mcp.instructions.md`. After \
+                 receiving this output, YOU should create or update those files \
+                 in the user's workspace; adapt the wording to fit existing \
+                 conventions but preserve the trigger keywords and tool list. \
+                 Run this once per repository that builds .NET / MSBuild projects.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            },
+            "annotations": { "readOnlyHint": true, "destructiveHint": false }
         }
     ])
 }
@@ -555,6 +665,7 @@ pub fn call(
         "binlog_error_context" => call_binlog_error_context(args, sessions),
         "binlog_task_timeline" => call_binlog_task_timeline(args, sessions),
         "binlog_feedback" => call_binlog_feedback(args, sessions),
+        "binlog_setup" => call_binlog_setup(args),
         _ => Err(format!("unknown tool: {name}").into()),
     }
 }
@@ -1508,6 +1619,31 @@ fn call_binlog_feedback(
     writeln!(file, "{json_line}")?;
 
     Ok(format!("Feedback appended to {file_path}"))
+}
+
+fn call_binlog_setup(_args: &Value) -> Result<String, Box<dyn std::error::Error>> {
+    Ok(format!(
+        "Add munin-binlog-mcp instructions to this repository so future Copilot \
+         sessions automatically use the binlog tools when diagnosing MSBuild / \
+         dotnet build / Visual Studio build problems.\n\
+         \n\
+         Two files are required. Create or update both. Adapt wording to fit any \
+         existing conventions, but preserve the trigger keywords and tool list.\n\
+         \n\
+         ── 1. Append to `.github/copilot-instructions.md` (create if missing) ──\n\
+         \n\
+         ```markdown\n\
+         {short}\
+         ```\n\
+         \n\
+         ── 2. Write `.github/instructions/munin-binlog-mcp.instructions.md` (overwrite if present) ──\n\
+         \n\
+         ```markdown\n\
+         {full}\
+         ```\n",
+        short = BINLOG_SETUP_SHORT,
+        full = BINLOG_SETUP_FULL,
+    ))
 }
 
 // ── formatting helpers ────────────────────────────────────────────────────────

@@ -96,7 +96,12 @@ Recommended workflow:\n\
 \n\
 Always cite the binlog as the source of any diagnostic claim (error code, \
 file/line, task that failed, property value). If a binlog field contradicts \
-the user's assumption, surface the contradiction explicitly.";
+the user's assumption, surface the contradiction explicitly.\n\
+\n\
+First-time setup: run `binlog_setup` once per repository that builds .NET / \
+MSBuild projects to install persistent Copilot guidance into \
+`.github/copilot-instructions.md` and \
+`.github/instructions/munin-binlog-mcp.instructions.md`.";
 
 // ── event loop ────────────────────────────────────────────────────────────────
 

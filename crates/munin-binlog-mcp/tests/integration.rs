@@ -212,7 +212,7 @@ fn full_analysis_workflow() {
 fn tool_list_is_complete() {
     let list = tools::list();
     let arr = list.as_array().expect("list() should return an array");
-    assert_eq!(arr.len(), 13, "should have exactly 13 tools");
+    assert_eq!(arr.len(), 14, "should have exactly 14 tools");
 
     for tool in arr {
         let name = tool["name"].as_str().expect("tool should have a name");

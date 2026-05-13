@@ -320,7 +320,7 @@ fn call_unknown_tool_returns_error() {
 // ── tool list tests ───────────────────────────────────────────────────────────
 
 #[test]
-fn list_includes_all_thirteen_tools() {
+fn list_includes_all_fourteen_tools() {
     let tools = list();
     let arr = tools.as_array().expect("list() should return an array");
 
@@ -363,7 +363,8 @@ fn list_includes_all_thirteen_tools() {
         names.contains(&"binlog_feedback"),
         "missing binlog_feedback"
     );
-    assert_eq!(names.len(), 13, "should have exactly 13 tools");
+    assert!(names.contains(&"binlog_setup"), "missing binlog_setup");
+    assert_eq!(names.len(), 14, "should have exactly 14 tools");
 }
 
 #[test]
