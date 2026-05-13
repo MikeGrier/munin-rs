@@ -56,6 +56,48 @@ mod code {
     pub const INVALID_PARAMS: i32 = -32602;
 }
 
+/// Server-level instructions returned in the `initialize` response.
+///
+/// Clients (Copilot, etc.) surface this text to the model as guidance on
+/// when and how to invoke the server's tools. Keep it directive, concrete,
+/// and oriented around the user-visible problem ("the build failed") rather
+/// than the mechanism ("call binlog_open").
+const SERVER_INSTRUCTIONS: &str = "\
+Munin Binlog MCP exposes MSBuild binary logs (.binlog files) for read-only \
+inspection. Reach for these tools whenever the user is diagnosing an MSBuild, \
+`dotnet build`, `dotnet publish`, `dotnet test`, MSBuild SDK, NuGet restore, \
+or Visual Studio build failure or warning -- including silent/empty failures, \
+'works on my machine' discrepancies, slow builds, target/task ordering issues, \
+incremental-build skips, or unexpected property/item evaluation. Prefer this \
+server over re-running the build, scraping plain-text MSBuild output, or \
+guessing from a stack trace: a binlog contains the structured truth.\n\
+\n\
+Producing a binlog when none exists:\n\
+- `dotnet build -bl:msbuild.binlog` (the `-bl` switch writes `msbuild.binlog` \
+  in the current directory by default).\n\
+- `msbuild /bl:msbuild.binlog` for the full Framework MSBuild.\n\
+- Visual Studio: install the 'MSBuild Binary and Structured Log Viewer' or \
+  set the `MSBuildDebugEngine=1` environment variable.\n\
+If the user has not produced one, suggest the appropriate command for their \
+toolchain and ask them to re-run the failing build with that flag.\n\
+\n\
+Recommended workflow:\n\
+1. `binlog_open` with the absolute path to the .binlog file. Keep the returned \
+   `session` handle for all follow-up calls.\n\
+2. `binlog_summary` to confirm overall success/failure and project list.\n\
+3. For failures: `binlog_errors` first; then `binlog_error_context` and/or \
+   `binlog_event_detail` on the most relevant error index to gather \
+   surrounding events (preceding task output, target invocation, etc.).\n\
+4. For warnings or noise: `binlog_warnings` (filter by `code` or `project`).\n\
+5. For 'why did MSBuild do X?' questions: `binlog_project_tree`, \
+   `binlog_task_timeline`, `binlog_properties`, `binlog_items`, or \
+   `binlog_events` with filters.\n\
+6. `binlog_close` when finished, or leave open if more questions are likely.\n\
+\n\
+Always cite the binlog as the source of any diagnostic claim (error code, \
+file/line, task that failed, property value). If a binlog field contradicts \
+the user's assumption, surface the contradiction explicitly.";
+
 // ── event loop ────────────────────────────────────────────────────────────────
 
 fn main() {
@@ -129,7 +171,8 @@ fn dispatch(method: &str, params: Option<Value>, sessions: &mut tools::SessionMa
                 "serverInfo": {
                     "name": "munin-binlog-mcp",
                     "version": env!("CARGO_PKG_VERSION")
-                }
+                },
+                "instructions": SERVER_INSTRUCTIONS,
             }),
         },
 

@@ -124,14 +124,23 @@ pub fn list() -> Value {
                 "Open an MSBuild binary log (.binlog) file and return a session handle \
                  along with a build summary. The session handle is used in subsequent \
                  tool calls to query the loaded binlog. The summary includes the binlog \
-                 format version, total event count, and counts of error and warning events.",
+                 format version, total event count, and counts of error and warning events.\n\
+                 \n\
+                 Use this tool whenever the user is diagnosing an MSBuild, `dotnet build`, \
+                 `dotnet test`, NuGet, or Visual Studio build failure or warning. If no \
+                 .binlog file exists yet, ask the user to re-run the failing build with \
+                 `dotnet build -bl:msbuild.binlog` (or `msbuild /bl:msbuild.binlog`) and \
+                 pass the resulting file path here. Common locations to check: the repo \
+                 root, the failing project directory, the user's working directory, or \
+                 paths the user mentions in their prompt.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "file": {
                         "type": "string",
                         "description":
-                            "Absolute path to the .binlog file to open."
+                            "Absolute path to the .binlog file to open. Typically \
+                             produced by `dotnet build -bl:<path>` or `msbuild /bl:<path>`."
                     }
                 },
                 "required": ["file"]
