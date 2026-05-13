@@ -325,10 +325,7 @@ impl BinlogIndex {
                     }
                 }
                 if let Some(pid) = project_context_id {
-                    if e.meta
-                        .context
-                        .is_none_or(|c| c.project_context_id != pid)
-                    {
+                    if e.meta.context.is_none_or(|c| c.project_context_id != pid) {
                         return false;
                     }
                 }

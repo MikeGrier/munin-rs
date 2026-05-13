@@ -104,13 +104,13 @@ fn project_finished_payload(succeeded: bool) -> Vec<u8> {
 
 /// Encode a BuildMessage payload: empty fields with importance.
 fn build_message_payload() -> Vec<u8> {
-     // NONE flags
-                              // importance written unconditionally for message events in pre-v13
-                              // but we're at v18+. The is_message_event=true path still reads importance
-                              // when the flag is not set AND version < 13. For v18+ we need the flag.
-                              // Actually for v18+ (>= 13), importance is flag-driven. If no IMPORTANCE
-                              // flag, it's not read. So empty fields with is_message_event=true is fine
-                              // for v18+ as long as we don't set the IMPORTANCE flag.
+    // NONE flags
+    // importance written unconditionally for message events in pre-v13
+    // but we're at v18+. The is_message_event=true path still reads importance
+    // when the flag is not set AND version < 13. For v18+ we need the flag.
+    // Actually for v18+ (>= 13), importance is flag-driven. If no IMPORTANCE
+    // flag, it's not read. So empty fields with is_message_event=true is fine
+    // for v18+ as long as we don't set the IMPORTANCE flag.
     encode_7bit(0)
 }
 
