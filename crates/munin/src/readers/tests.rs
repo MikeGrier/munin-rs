@@ -240,3 +240,14 @@ fn optional_string_v10_empty_string_index() {
         Some(String::new())
     );
 }
+
+// --- read_legacy_string_dictionary: malformed-input rejection ---
+
+#[test]
+fn legacy_string_dictionary_rejects_negative_count() {
+    // -1 encoded as 7-bit int — would sign-extend to a huge usize via `as`.
+    let data: [u8; 5] = [0xFF, 0xFF, 0xFF, 0xFF, 0x0F];
+    let mut cursor = Cursor::new(data);
+    let err = read_legacy_string_dictionary(&mut cursor).unwrap_err();
+    assert!(matches!(err, crate::error::MuninError::InvalidFormat(_)));
+}

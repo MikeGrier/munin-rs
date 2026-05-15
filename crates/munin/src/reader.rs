@@ -20,7 +20,7 @@ use crate::{
     events::*,
     header::{open_binlog, BinlogHeader},
     nvl_table::{NameValueListTable, NameValuePair},
-    primitives::read_7bit_int,
+    primitives::{read_7bit_int, read_7bit_length},
     record_kind::BinaryLogRecordKind,
     string_table::StringTable,
 };
@@ -207,7 +207,7 @@ impl<R: Read> BinlogReader<R> {
 
             // Record length (bytes of payload). Always present for v18+,
             // and we only support v18+.
-            let record_length = read_7bit_int(&mut self.reader)? as usize;
+            let record_length = read_7bit_length(&mut self.reader, "record length")?;
 
             // Read the entire payload into a buffer. This gives us
             // forward-compatibility: if the payload is longer than what
@@ -229,8 +229,8 @@ impl<R: Read> BinlogReader<R> {
                 // --- Auxiliary: name-value list entry ---
                 Some(BinaryLogRecordKind::NameValueList) => {
                     let mut cursor = Cursor::new(&payload);
-                    let count = read_7bit_int(&mut cursor)?;
-                    let mut pairs = Vec::with_capacity(count as usize);
+                    let count = read_7bit_length(&mut cursor, "name-value list count")?;
+                    let mut pairs = Vec::with_capacity(count);
                     for _ in 0..count {
                         let key_index = read_7bit_int(&mut cursor)?;
                         let value_index = read_7bit_int(&mut cursor)?;

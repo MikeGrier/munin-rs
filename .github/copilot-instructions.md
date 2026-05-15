@@ -138,3 +138,16 @@ directory, and concurrent builds will overwrite the same file.
 Source files in this repository may contain non-ASCII characters. When editing
 files, prefer the editor's built-in edit tools over PowerShell file I/O
 (`Set-Content`, `Out-File`, `>`) to avoid encoding corruption.
+
+
+## Rust Projects
+
+Always use the `cargo_*` MCP tools for Rust projects, and never run `cargo` commands in the terminal. This ensures you get structured output, progress notifications, and safe elicitation for destructive operations.
+
+Always use cargo fmt to ensure consistent code formatting before committing code. Fix all formatting issues before pushing code to the repository. You can use `cargo_fmt_check` in CI to enforce this rule.
+
+Always use cargo clippy to catch common mistakes and improve code quality. Fix all clippy warnings before committing code. You can use `cargo_clippy` in CI to enforce this rule.
+
+When adding or removing dependencies, always use `cargo_add` and `cargo_remove` instead of manually editing Cargo.toml. This ensures that dependency changes are properly tracked and that the lockfile is updated correctly.
+
+When building or testing, always use `cargo_build` and `cargo_test` to get structured output and progress notifications. Avoid running `cargo build` or `cargo test` in the terminal, as this can lead to missed errors and a less efficient workflow.

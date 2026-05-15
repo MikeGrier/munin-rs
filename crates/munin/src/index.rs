@@ -17,7 +17,7 @@ use crate::{
     field_flags::BuildEventArgsFieldFlags,
     header::{open_binlog, BinlogHeader},
     nvl_table::{NameValueListTable, NameValuePair},
-    primitives::read_7bit_int,
+    primitives::{read_7bit_int, read_7bit_length},
     reader::{dispatch_event, ArchiveEntry, BinlogEvent},
     record_kind::BinaryLogRecordKind,
     string_table::StringTable,
@@ -118,7 +118,18 @@ impl BinlogIndex {
 
             // Record length (bytes of payload). Always present for v18+.
             let (record_length, len_bytes) = read_7bit_int_counted(&mut gz_reader)?;
+            if record_length < 0 {
+                return Err(MuninError::InvalidFormat(format!(
+                    "negative record length: {record_length}"
+                )));
+            }
             let record_length = record_length as usize;
+            if record_length > crate::primitives::MAX_BINLOG_FIELD_LEN {
+                return Err(MuninError::InvalidFormat(format!(
+                    "record length too large: {record_length} (max {})",
+                    crate::primitives::MAX_BINLOG_FIELD_LEN
+                )));
+            }
             offset += len_bytes;
 
             // Read the full payload.
@@ -136,8 +147,8 @@ impl BinlogIndex {
 
                 Some(BinaryLogRecordKind::NameValueList) => {
                     let mut cursor = Cursor::new(&payload);
-                    let count = read_7bit_int(&mut cursor)?;
-                    let mut pairs = Vec::with_capacity(count as usize);
+                    let count = read_7bit_length(&mut cursor, "name-value list count")?;
+                    let mut pairs = Vec::with_capacity(count);
                     for _ in 0..count {
                         let key_index = read_7bit_int(&mut cursor)?;
                         let value_index = read_7bit_int(&mut cursor)?;

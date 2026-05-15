@@ -34,18 +34,49 @@ pub fn read_7bit_int(reader: &mut impl Read) -> Result<i32, MuninError> {
     Err(MuninError::OverlongVarInt)
 }
 
+/// Maximum length or count accepted by [`read_7bit_length`].
+///
+/// 256 MiB is well above the largest record found in real MSBuild binlogs
+/// and well below `i32::MAX` (~2 GiB). Values larger than this from an
+/// untrusted binlog are treated as malformed input rather than being passed
+/// to `Vec::with_capacity` / `vec![0u8; n]`, which would attempt a huge
+/// allocation and abort or exhaust memory.
+pub const MAX_BINLOG_FIELD_LEN: usize = 256 * 1024 * 1024; // 256 MiB
+
+/// Read a 7-bit variable-length encoded length or count and validate that
+/// it is non-negative and within [`MAX_BINLOG_FIELD_LEN`] before casting
+/// to `usize`.
+///
+/// On the wire, lengths and counts are encoded as signed `i32` (matching
+/// .NET's `BinaryWriter.Write7BitEncodedInt`). A malformed binlog could
+/// supply a negative value which, if cast directly with `as usize`, would
+/// sign-extend to a huge `usize` and cause `Vec::with_capacity` /
+/// `vec![0u8; n]` to abort or exhaust memory. Even a large *positive*
+/// value can trigger the same abort. Use this helper at every site that
+/// turns a parsed varint into a buffer or collection capacity.
+///
+/// `what` names the field being read; it is included in the error message
+/// to aid debugging malformed inputs.
+pub fn read_7bit_length(reader: &mut impl Read, what: &'static str) -> Result<usize, MuninError> {
+    let n = read_7bit_int(reader)?;
+    if n < 0 {
+        return Err(MuninError::InvalidFormat(format!("negative {what}: {n}")));
+    }
+    let n = n as usize;
+    if n > MAX_BINLOG_FIELD_LEN {
+        return Err(MuninError::InvalidFormat(format!(
+            "{what} too large: {n} (max {MAX_BINLOG_FIELD_LEN})"
+        )));
+    }
+    Ok(n)
+}
+
 /// Read a .NET `BinaryWriter`-style length-prefixed UTF-8 string.
 ///
 /// The length (in bytes) is encoded as a 7-bit variable-length integer,
 /// followed by that many bytes of UTF-8 data.
 pub fn read_dotnet_string(reader: &mut impl Read) -> Result<String, MuninError> {
-    let len = read_7bit_int(reader)?;
-    if len < 0 {
-        return Err(MuninError::InvalidFormat(
-            "negative string length".to_string(),
-        ));
-    }
-    let len = len as usize;
+    let len = read_7bit_length(reader, "string length")?;
     if len == 0 {
         return Ok(String::new());
     }
