@@ -8,6 +8,10 @@
             "extra-files": [
                 "Cargo.toml",
                 {
+                    "type": "generic",
+                    "path": "crates/munin-binlog-mcp/Cargo.toml"
+                },
+                {
                     "type": "json",
                     "path": "crates/munin-binlog-mcp/extension/package.json",
                     "jsonpath": "$.version"
