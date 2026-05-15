@@ -27,3 +27,8 @@ crates/munin-binlog-mcp/extension/bin/*.exe
 crates/munin-binlog-mcp/extension/bin/munin-binlog-mcp
 crates/munin-binlog-mcp/extension/bin/VERSION
 crates/munin-binlog-mcp/extension/*.vsix
+
+# C# / MSBuild build artefacts (test projects under testprojects/)
+testprojects/**/bin/
+testprojects/**/obj/
+testprojects/**/*.binlog
