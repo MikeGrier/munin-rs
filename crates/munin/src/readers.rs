@@ -11,7 +11,7 @@ use std::io::Read;
 use crate::{
     error::MuninError,
     nvl_table::NameValueListTable,
-    primitives::{read_7bit_int, read_7bit_length, read_bool, read_dotnet_string},
+    primitives::{read_7bit_int, read_7bit_count, read_bool, read_dotnet_string},
     string_table::StringTable,
 };
 
@@ -73,7 +73,7 @@ pub fn read_string_dictionary(
 fn read_legacy_string_dictionary(
     reader: &mut impl Read,
 ) -> Result<Option<Vec<(String, String)>>, MuninError> {
-    let count = read_7bit_length(reader, "legacy string-dictionary count")?;
+    let count = read_7bit_count(reader, "legacy string-dictionary count")?;
     if count == 0 {
         return Ok(None);
     }

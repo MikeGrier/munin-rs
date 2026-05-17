@@ -18,7 +18,7 @@ use crate::{
     error::MuninError,
     fields::{read_build_event_args_fields, BuildEventArgsFields},
     nvl_table::NameValueListTable,
-    primitives::{read_7bit_int, read_7bit_length, read_bool},
+    primitives::{read_7bit_int, read_7bit_count, read_bool},
     readers::{read_dedup_string, read_optional_string, read_string_dictionary},
     string_table::StringTable,
 };
@@ -651,7 +651,7 @@ pub fn read_project_evaluation_finished(
     if file_format_version > 4 {
         has_profile_data = read_bool(reader)?;
         if has_profile_data {
-            let count = read_7bit_length(reader, "profile entry count")?;
+            let count = read_7bit_count(reader, "profile entry count")?;
             let mut entries = Vec::with_capacity(count);
             for _ in 0..count {
                 let location = read_evaluation_location(reader, strings, file_format_version)?;
@@ -1046,7 +1046,7 @@ fn read_string_list(
     reader: &mut impl Read,
     strings: &StringTable,
 ) -> Result<Option<Vec<String>>, MuninError> {
-    let count = read_7bit_length(reader, "string-list count")?;
+    let count = read_7bit_count(reader, "string-list count")?;
     if count == 0 {
         return Ok(None);
     }
@@ -1095,7 +1095,7 @@ fn read_task_item_list(
     nvl_table: &NameValueListTable,
     file_format_version: i32,
 ) -> Result<Option<Vec<TaskItem>>, MuninError> {
-    let count = read_7bit_length(reader, "task-item count")?;
+    let count = read_7bit_count(reader, "task-item count")?;
     if count == 0 {
         return Ok(None);
     }
@@ -1124,7 +1124,7 @@ fn read_project_items(
     file_format_version: i32,
 ) -> Result<Option<Vec<ItemGroup>>, MuninError> {
     if file_format_version < 10 {
-        let count = read_7bit_length(reader, "item count")?;
+        let count = read_7bit_count(reader, "item count")?;
         if count == 0 {
             return Ok(None);
         }
@@ -1144,7 +1144,7 @@ fn read_project_items(
         }
         Ok(Some(groups))
     } else if file_format_version < 12 {
-        let count = read_7bit_length(reader, "item-group count")?;
+        let count = read_7bit_count(reader, "item-group count")?;
         if count == 0 {
             return Ok(None);
         }

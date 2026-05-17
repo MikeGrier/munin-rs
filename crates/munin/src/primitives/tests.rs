@@ -239,6 +239,65 @@ fn read_7bit_length_accepts_at_max() {
     );
 }
 
+// ── 7-bit count helper ─────────────────────────────────────────────────
+
+#[test]
+fn read_7bit_count_zero() {
+    let mut c = Cursor::new([0x00u8]);
+    assert_eq!(read_7bit_count(&mut c, "test").unwrap(), 0);
+}
+
+#[test]
+fn read_7bit_count_positive() {
+    let mut c = Cursor::new([0xACu8, 0x02]); // 300
+    assert_eq!(read_7bit_count(&mut c, "test").unwrap(), 300);
+}
+
+#[test]
+fn read_7bit_count_rejects_negative() {
+    // -1 encoded as 7-bit int: [0xFF, 0xFF, 0xFF, 0xFF, 0x0F]
+    let mut c = Cursor::new([0xFFu8, 0xFF, 0xFF, 0xFF, 0x0F]);
+    let err = read_7bit_count(&mut c, "widget count").unwrap_err();
+    match err {
+        MuninError::InvalidFormat(msg) => {
+            assert!(msg.contains("widget count"), "message was: {msg}");
+            assert!(msg.contains("-1"), "message was: {msg}");
+        }
+        other => panic!("expected InvalidFormat, got {other:?}"),
+    }
+}
+
+#[test]
+fn read_7bit_count_rejects_above_max() {
+    // MAX_BINLOG_ELEMENT_COUNT + 1 = 0x10_0001 = 1,048,577
+    // 7-bit encoding of 0x100001 (3 bytes, LSB-first 7-bit groups):
+    //   bits 0-6:   0x01 | 0x80 = 0x81  (more follows)
+    //   bits 7-13:  0x00 | 0x80 = 0x80  (more follows)
+    //   bits 14-20: 0x40               (stop; 0x40 << 14 = 0x100_0000, total = 0x100_0001)
+    let mut c = Cursor::new([0x81u8, 0x80, 0x40]);
+    let err = read_7bit_count(&mut c, "item count").unwrap_err();
+    match err {
+        MuninError::InvalidFormat(msg) => {
+            assert!(msg.contains("too large"), "message was: {msg}");
+        }
+        other => panic!("expected InvalidFormat, got {other:?}"),
+    }
+}
+
+#[test]
+fn read_7bit_count_accepts_at_max() {
+    // MAX_BINLOG_ELEMENT_COUNT = 0x10_0000 = 1,048,576
+    // 7-bit encoding of 0x100000 (3 bytes, LSB-first 7-bit groups):
+    //   bits 0-6:   0x00 | 0x80 = 0x80  (more follows)
+    //   bits 7-13:  0x00 | 0x80 = 0x80  (more follows)
+    //   bits 14-20: 0x40               (stop; 0x40 << 14 = 0x100_0000)
+    let mut c = Cursor::new([0x80u8, 0x80, 0x40]);
+    assert_eq!(
+        read_7bit_count(&mut c, "test").unwrap(),
+        MAX_BINLOG_ELEMENT_COUNT
+    );
+}
+
 // ── Boolean ────────────────────────────────────────────────────────────
 
 #[test]

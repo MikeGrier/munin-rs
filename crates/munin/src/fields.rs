@@ -13,7 +13,7 @@ use crate::{
     context::{read_build_event_context, BuildEventContext},
     error::MuninError,
     field_flags::BuildEventArgsFieldFlags,
-    primitives::{read_7bit_int, read_7bit_length, read_datetime, BinlogDateTime},
+    primitives::{read_7bit_int, read_7bit_count, read_datetime, BinlogDateTime},
     string_table::StringTable,
 };
 
@@ -155,7 +155,7 @@ pub fn read_build_event_args_fields(
     }
 
     if flags.contains(BuildEventArgsFieldFlags::ARGUMENTS) {
-        let count = read_7bit_length(reader, "event arguments count")?;
+        let count = read_7bit_count(reader, "event arguments count")?;
         let mut args = Vec::with_capacity(count);
         for _ in 0..count {
             args.push(read_dedup_string(reader, strings)?);

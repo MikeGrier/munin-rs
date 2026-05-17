@@ -17,7 +17,7 @@ use crate::{
     field_flags::BuildEventArgsFieldFlags,
     header::{open_binlog, BinlogHeader},
     nvl_table::{NameValueListTable, NameValuePair},
-    primitives::{read_7bit_int, read_7bit_length},
+    primitives::{read_7bit_int, read_7bit_count},
     reader::{dispatch_event, ArchiveEntry, BinlogEvent},
     record_kind::BinaryLogRecordKind,
     string_table::StringTable,
@@ -147,7 +147,7 @@ impl BinlogIndex {
 
                 Some(BinaryLogRecordKind::NameValueList) => {
                     let mut cursor = Cursor::new(&payload);
-                    let count = read_7bit_length(&mut cursor, "name-value list count")?;
+                    let count = read_7bit_count(&mut cursor, "name-value list count")?;
                     let mut pairs = Vec::with_capacity(count);
                     for _ in 0..count {
                         let key_index = read_7bit_int(&mut cursor)?;

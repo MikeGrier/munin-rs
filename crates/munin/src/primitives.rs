@@ -43,6 +43,16 @@ pub fn read_7bit_int(reader: &mut impl Read) -> Result<i32, MuninError> {
 /// allocation and abort or exhaust memory.
 pub const MAX_BINLOG_FIELD_LEN: usize = 256 * 1024 * 1024; // 256 MiB
 
+/// Maximum element count accepted by [`read_7bit_count`].
+///
+/// 1 MiB (1,048,576) elements is far above any count found in real MSBuild
+/// binlogs. Unlike byte buffers, each element in a `Vec<String>`,
+/// `Vec<TaskItem>`, or `Vec<NameValuePair>` multiplies the allocation by the
+/// element size (24+ bytes). Using the same 256 MiB ceiling as byte lengths
+/// would permit multi-GiB allocations from a count alone; this lower limit
+/// caps the worst case at ~24 MiB (1 M × 24-byte `String` headers).
+pub const MAX_BINLOG_ELEMENT_COUNT: usize = 1 << 20; // 1,048,576
+
 /// Read a 7-bit variable-length encoded length or count and validate that
 /// it is non-negative and within [`MAX_BINLOG_FIELD_LEN`] before casting
 /// to `usize`.
@@ -66,6 +76,32 @@ pub fn read_7bit_length(reader: &mut impl Read, what: &'static str) -> Result<us
     if n > MAX_BINLOG_FIELD_LEN {
         return Err(MuninError::InvalidFormat(format!(
             "{what} too large: {n} (max {MAX_BINLOG_FIELD_LEN})"
+        )));
+    }
+    Ok(n)
+}
+
+/// Read a 7-bit variable-length encoded element count and validate that it
+/// is non-negative and within [`MAX_BINLOG_ELEMENT_COUNT`] before casting
+/// to `usize`.
+///
+/// Use this instead of [`read_7bit_length`] at every site that turns a
+/// parsed varint into a collection capacity (`Vec::with_capacity`). Each
+/// element in `Vec<String>`, `Vec<TaskItem>`, etc. multiplies the allocation
+/// by its own size; using the 256 MiB byte-length ceiling for element counts
+/// would allow multi-GiB allocations from a count field alone.
+///
+/// `what` names the field being read; it is included in the error message
+/// to aid debugging malformed inputs.
+pub fn read_7bit_count(reader: &mut impl Read, what: &'static str) -> Result<usize, MuninError> {
+    let n = read_7bit_int(reader)?;
+    if n < 0 {
+        return Err(MuninError::InvalidFormat(format!("negative {what}: {n}")));
+    }
+    let n = n as usize;
+    if n > MAX_BINLOG_ELEMENT_COUNT {
+        return Err(MuninError::InvalidFormat(format!(
+            "{what} too large: {n} (max {MAX_BINLOG_ELEMENT_COUNT})"
         )));
     }
     Ok(n)

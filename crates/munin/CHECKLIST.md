@@ -21,3 +21,4 @@ OOM or panic. Validate at every cast site so the parser returns
 - [x] **M3 — Tests.** Unit tests for `read_7bit_length` rejecting negatives (including `i32::MIN`) and a `read_legacy_string_dictionary` test that confirms a negative count is rejected with `MuninError::InvalidFormat`.
 - [x] **M4 — Verify.** `cargo_check`, `cargo_test`, `cargo_clippy` all clean.
 - [x] **M5 — Commit and PR.** Conventional commit `fix(parser): reject negative lengths/counts in binlog payloads (#14)`.
+- [x] **M6 — Element-count ceiling (issue #19).** Add `MAX_BINLOG_ELEMENT_COUNT` (1 M) and `read_7bit_count` helper. Swap all collection-count call sites (NVL pair count, string-dict count, event arguments count, profile/string/task/item/item-group counts in `events.rs`) from `read_7bit_length` to `read_7bit_count` so a large element count cannot trigger a multi-GiB `Vec` allocation. Tests added for zero, positive, reject-above-max, and accepts-at-max.
