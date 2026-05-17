@@ -144,9 +144,9 @@ files, prefer the editor's built-in edit tools over PowerShell file I/O
 
 Always use the `cargo_*` MCP tools for Rust projects, and never run `cargo` commands in the terminal. This ensures you get structured output, progress notifications, and safe elicitation for destructive operations.
 
-Always use cargo fmt to ensure consistent code formatting before committing code. Fix all formatting issues before pushing code to the repository. You can use `cargo_fmt_check` in CI to enforce this rule.
+Always use `cargo_fmt` to ensure consistent code formatting before committing code. Fix all formatting issues before pushing code to the repository. You can use `cargo_fmt_check` in CI to enforce this rule.
 
-Always use cargo clippy to catch common mistakes and improve code quality. Fix all clippy warnings before committing code. You can use `cargo_clippy` in CI to enforce this rule.
+Always use `cargo_clippy` to catch common mistakes and improve code quality. Fix all clippy warnings before committing code. You can use `cargo_clippy` in CI to enforce this rule.
 
 When adding or removing dependencies, always use `cargo_add` and `cargo_remove` instead of manually editing Cargo.toml. This ensures that dependency changes are properly tracked and that the lockfile is updated correctly.
 

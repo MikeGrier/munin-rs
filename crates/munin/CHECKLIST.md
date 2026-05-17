@@ -20,4 +20,4 @@ OOM or panic. Validate at every cast site so the parser returns
   - `events.rs` — profile entry count, string list count, task item count, item group count
 - [x] **M3 — Tests.** Unit tests for `read_7bit_length` rejecting negatives (including `i32::MIN`) and a `read_legacy_string_dictionary` test that confirms a negative count is rejected with `MuninError::InvalidFormat`.
 - [x] **M4 — Verify.** `cargo_check`, `cargo_test`, `cargo_clippy` all clean.
-- [ ] **M5 — Commit and PR.** Conventional commit `fix(parser): reject negative lengths/counts in binlog payloads (#14)`.
+- [x] **M5 — Commit and PR.** Conventional commit `fix(parser): reject negative lengths/counts in binlog payloads (#14)`.
