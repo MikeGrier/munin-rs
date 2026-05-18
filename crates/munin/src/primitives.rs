@@ -45,25 +45,25 @@ pub const MAX_BINLOG_FIELD_LEN: usize = 256 * 1024 * 1024; // 256 MiB
 
 /// Maximum element count accepted by [`read_7bit_count`].
 ///
-/// 1 MiB (1,048,576) elements is far above any count found in real MSBuild
+/// 1,048,576 (2²⁰) elements is far above any count found in real MSBuild
 /// binlogs. Unlike byte buffers, each element in a `Vec<String>`,
 /// `Vec<TaskItem>`, or `Vec<NameValuePair>` multiplies the allocation by the
-/// element size (24+ bytes). Using the same 256 MiB ceiling as byte lengths
-/// would permit multi-GiB allocations from a count alone; this lower limit
-/// caps the worst case at ~24 MiB (1 M × 24-byte `String` headers).
+/// element size, which varies by type and can be much larger than 24 bytes.
+/// Using the same 256 MiB ceiling as byte lengths would permit multi-GiB
+/// allocations from a count field alone; this lower limit bounds that risk.
 pub const MAX_BINLOG_ELEMENT_COUNT: usize = 1 << 20; // 1,048,576
 
-/// Read a 7-bit variable-length encoded length or count and validate that
+/// Read a 7-bit variable-length encoded byte-buffer length and validate that
 /// it is non-negative and within [`MAX_BINLOG_FIELD_LEN`] before casting
 /// to `usize`.
 ///
-/// On the wire, lengths and counts are encoded as signed `i32` (matching
-/// .NET's `BinaryWriter.Write7BitEncodedInt`). A malformed binlog could
-/// supply a negative value which, if cast directly with `as usize`, would
-/// sign-extend to a huge `usize` and cause `Vec::with_capacity` /
-/// `vec![0u8; n]` to abort or exhaust memory. Even a large *positive*
-/// value can trigger the same abort. Use this helper at every site that
-/// turns a parsed varint into a buffer or collection capacity.
+/// On the wire, lengths are encoded as signed `i32` (matching .NET's
+/// `BinaryWriter.Write7BitEncodedInt`). A malformed binlog could supply a
+/// negative value which, if cast directly with `as usize`, would sign-extend
+/// to a huge `usize` and cause `vec![0u8; n]` to abort or exhaust memory.
+/// Even a large *positive* value can trigger the same abort. Use this helper
+/// only for byte-buffer lengths (e.g. `read_dotnet_string`, record payloads).
+/// For collection element counts use [`read_7bit_count`] instead.
 ///
 /// `what` names the field being read; it is included in the error message
 /// to aid debugging malformed inputs.
@@ -85,11 +85,11 @@ pub fn read_7bit_length(reader: &mut impl Read, what: &'static str) -> Result<us
 /// is non-negative and within [`MAX_BINLOG_ELEMENT_COUNT`] before casting
 /// to `usize`.
 ///
-/// Use this instead of [`read_7bit_length`] at every site that turns a
+/// Use this instead of [`read_7bit_length`] at every call site that turns a
 /// parsed varint into a collection capacity (`Vec::with_capacity`). Each
-/// element in `Vec<String>`, `Vec<TaskItem>`, etc. multiplies the allocation
-/// by its own size; using the 256 MiB byte-length ceiling for element counts
-/// would allow multi-GiB allocations from a count field alone.
+/// element type (`String`, `TaskItem`, `NameValuePair`, `ProfileEntry`, …)
+/// varies in size; using the 256 MiB byte-length ceiling for element counts
+/// would allow multi-GiB allocations from a single count field.
 ///
 /// `what` names the field being read; it is included in the error message
 /// to aid debugging malformed inputs.

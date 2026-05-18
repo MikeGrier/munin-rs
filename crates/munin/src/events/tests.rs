@@ -1788,3 +1788,25 @@ fn rejects_negative_item_group_count_v10_11() {
         "expected InvalidFormat, got {err:?}"
     );
 }
+
+#[test]
+fn rejects_negative_target_output_count() {
+    // Regression: read_target_finished calls read_task_item_list for outputs.
+    // A negative output count should be rejected with InvalidFormat.
+    // Payload for version 18:
+    //   [0x00] flags NONE, [0x01] succeeded=true, [0x00][0x00][0x00] three null optional strings,
+    //   [0xFF…0x0F] task-item count = -1.
+    let (strings, nvl) = make_tables();
+    let mut data = encode_empty_fields(); // flags NONE
+    data.extend(encode_bool(true)); // succeeded
+    data.extend(encode_7bit(0)); // project_file null (v18: dedup index)
+    data.extend(encode_7bit(0)); // target_file null
+    data.extend(encode_7bit(0)); // target_name null
+    data.extend_from_slice(&[0xFF, 0xFF, 0xFF, 0xFF, 0x0F]); // target_outputs count = -1
+    let mut cursor = Cursor::new(data);
+    let err = read_target_finished(&mut cursor, &strings, &nvl, 18).unwrap_err();
+    assert!(
+        matches!(err, crate::error::MuninError::InvalidFormat(_)),
+        "expected InvalidFormat, got {err:?}"
+    );
+}

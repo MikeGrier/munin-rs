@@ -1129,13 +1129,17 @@ fn read_project_items(
             return Ok(None);
         }
         let mut groups: Vec<ItemGroup> = Vec::new();
+        let mut group_index: std::collections::HashMap<String, usize> =
+            std::collections::HashMap::new();
         for _ in 0..count {
             let item_name = read_dotnet_string_via_reader(reader)?;
             let item = read_task_item(reader, strings, nvl_table, file_format_version)?;
-            // Group by item_name.
-            if let Some(group) = groups.iter_mut().find(|g| g.item_type == item_name) {
-                group.items.push(item);
+            // Group by item_name using a map to avoid O(n²) linear scans.
+            if let Some(&idx) = group_index.get(&item_name) {
+                groups[idx].items.push(item);
             } else {
+                let idx = groups.len();
+                group_index.insert(item_name.clone(), idx);
                 groups.push(ItemGroup {
                     item_type: item_name,
                     items: vec![item],

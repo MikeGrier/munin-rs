@@ -273,7 +273,7 @@ fn read_7bit_count_rejects_above_max() {
     // 7-bit encoding of 0x100001 (3 bytes, LSB-first 7-bit groups):
     //   bits 0-6:   0x01 | 0x80 = 0x81  (more follows)
     //   bits 7-13:  0x00 | 0x80 = 0x80  (more follows)
-    //   bits 14-20: 0x40               (stop; 0x40 << 14 = 0x100_0000, total = 0x100_0001)
+    //   bits 14-20: 0x40               (stop; 0x40 << 14 = 0x10_0000, total = 0x10_0001)
     let mut c = Cursor::new([0x81u8, 0x80, 0x40]);
     let err = read_7bit_count(&mut c, "item count").unwrap_err();
     match err {
@@ -290,7 +290,7 @@ fn read_7bit_count_accepts_at_max() {
     // 7-bit encoding of 0x100000 (3 bytes, LSB-first 7-bit groups):
     //   bits 0-6:   0x00 | 0x80 = 0x80  (more follows)
     //   bits 7-13:  0x00 | 0x80 = 0x80  (more follows)
-    //   bits 14-20: 0x40               (stop; 0x40 << 14 = 0x100_0000)
+    //   bits 14-20: 0x40               (stop; 0x40 << 14 = 0x10_0000)
     let mut c = Cursor::new([0x80u8, 0x80, 0x40]);
     assert_eq!(
         read_7bit_count(&mut c, "test").unwrap(),
