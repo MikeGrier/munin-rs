@@ -959,7 +959,7 @@ fn extract_large_file_in_archive() {
 }
 
 // ---------------------------------------------------------------------------
-// MN-19: Regression tests — negative record length / negative NVL count
+// #14: Regression tests — negative record length / negative NVL count
 // ---------------------------------------------------------------------------
 
 #[test]

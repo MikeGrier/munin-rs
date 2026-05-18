@@ -301,7 +301,7 @@ fn extended_fields() {
 }
 
 // ---------------------------------------------------------------------------
-// MN-19: Regression — negative ARGUMENTS count
+// #14: Regression — negative ARGUMENTS count
 // ---------------------------------------------------------------------------
 
 #[test]
