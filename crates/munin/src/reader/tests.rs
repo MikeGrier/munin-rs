@@ -957,3 +957,41 @@ fn extract_large_file_in_archive() {
     assert_eq!(entries.len(), 1);
     assert_eq!(entries[0].contents.len(), 10_000);
 }
+
+// ---------------------------------------------------------------------------
+// MN-19: Regression tests — negative record length / negative NVL count
+// ---------------------------------------------------------------------------
+
+#[test]
+fn rejects_negative_record_length_in_reader() {
+    // A record whose 7-bit length field is -1. The reader should reject this
+    // with InvalidFormat before attempting any allocation.
+    let mut body = Vec::new();
+    body.extend(encode_7bit(BinaryLogRecordKind::BuildStarted as i32));
+    body.extend_from_slice(&[0xFF, 0xFF, 0xFF, 0xFF, 0x0F]); // length = -1
+
+    let data = make_binlog(18, 18, &body);
+    let mut reader = BinlogReader::open(Cursor::new(data)).unwrap();
+    let err = reader.next_event().unwrap_err();
+    assert!(
+        matches!(err, crate::error::MuninError::InvalidFormat(_)),
+        "expected InvalidFormat, got {err:?}"
+    );
+}
+
+#[test]
+fn rejects_negative_nvl_count_in_reader() {
+    // A NameValueList record whose count field is -1. The reader should reject
+    // this before allocating the pairs vector.
+    let payload: Vec<u8> = vec![0xFF, 0xFF, 0xFF, 0xFF, 0x0F]; // count = -1
+    let mut body = Vec::new();
+    body.extend(encode_record(BinaryLogRecordKind::NameValueList, &payload));
+
+    let data = make_binlog(18, 18, &body);
+    let mut reader = BinlogReader::open(Cursor::new(data)).unwrap();
+    let err = reader.next_event().unwrap_err();
+    assert!(
+        matches!(err, crate::error::MuninError::InvalidFormat(_)),
+        "expected InvalidFormat, got {err:?}"
+    );
+}

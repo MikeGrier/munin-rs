@@ -299,3 +299,23 @@ fn extended_fields() {
     assert_eq!(ext.extended_metadata_index, 0);
     assert_eq!(ext.extended_data.as_deref(), Some("{\"key\":1}"));
 }
+
+// ---------------------------------------------------------------------------
+// MN-19: Regression — negative ARGUMENTS count
+// ---------------------------------------------------------------------------
+
+#[test]
+fn rejects_negative_arguments_count() {
+    // ARGUMENTS flag (0x4000) is set but the count field is -1.
+    // read_build_event_args_fields should return InvalidFormat before
+    // allocating the arguments vector.
+    let strings = StringTable::new();
+    let mut data = encode_7bit(BuildEventArgsFieldFlags::ARGUMENTS.bits() as i32);
+    data.extend_from_slice(&[0xFF, 0xFF, 0xFF, 0xFF, 0x0F]); // count = -1
+    let mut cursor = Cursor::new(data);
+    let err = read_build_event_args_fields(&mut cursor, &strings, 18, false).unwrap_err();
+    assert!(
+        matches!(err, crate::error::MuninError::InvalidFormat(_)),
+        "expected InvalidFormat, got {err:?}"
+    );
+}
