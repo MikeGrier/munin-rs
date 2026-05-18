@@ -128,7 +128,7 @@ dependencies = [
 
 [[package]]
 name = "munin"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "flate2",
  "zip",
@@ -136,7 +136,7 @@ dependencies = [
 
 [[package]]
 name = "munin-binlog-mcp"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "munin",
  "serde",
