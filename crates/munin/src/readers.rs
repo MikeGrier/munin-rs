@@ -11,7 +11,7 @@ use std::io::Read;
 use crate::{
     error::MuninError,
     nvl_table::NameValueListTable,
-    primitives::{read_7bit_int, read_7bit_count, read_bool, read_dotnet_string},
+    primitives::{read_7bit_count, read_7bit_int, read_bool, read_dotnet_string},
     string_table::StringTable,
 };
 

@@ -13,7 +13,7 @@ use crate::{
     context::{read_build_event_context, BuildEventContext},
     error::MuninError,
     field_flags::BuildEventArgsFieldFlags,
-    primitives::{read_7bit_int, read_7bit_count, read_datetime, BinlogDateTime},
+    primitives::{read_7bit_count, read_7bit_int, read_datetime, BinlogDateTime},
     string_table::StringTable,
 };
 

@@ -17,7 +17,7 @@ use crate::{
     field_flags::BuildEventArgsFieldFlags,
     header::{open_binlog, BinlogHeader},
     nvl_table::{NameValueListTable, NameValuePair},
-    primitives::{read_7bit_int, read_7bit_count},
+    primitives::{read_7bit_count, read_7bit_int},
     reader::{dispatch_event, ArchiveEntry, BinlogEvent},
     record_kind::BinaryLogRecordKind,
     string_table::StringTable,

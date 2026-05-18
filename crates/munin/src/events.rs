@@ -18,7 +18,7 @@ use crate::{
     error::MuninError,
     fields::{read_build_event_args_fields, BuildEventArgsFields},
     nvl_table::NameValueListTable,
-    primitives::{read_7bit_int, read_7bit_count, read_bool},
+    primitives::{read_7bit_count, read_7bit_int, read_bool},
     readers::{read_dedup_string, read_optional_string, read_string_dictionary},
     string_table::StringTable,
 };

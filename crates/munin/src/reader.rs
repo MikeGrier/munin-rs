@@ -20,7 +20,7 @@ use crate::{
     events::*,
     header::{open_binlog, BinlogHeader},
     nvl_table::{NameValueListTable, NameValuePair},
-    primitives::{read_7bit_int, read_7bit_count, read_7bit_length},
+    primitives::{read_7bit_count, read_7bit_int, read_7bit_length},
     record_kind::BinaryLogRecordKind,
     string_table::StringTable,
 };
