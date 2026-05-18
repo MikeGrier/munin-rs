@@ -34,13 +34,14 @@ pub fn read_7bit_int(reader: &mut impl Read) -> Result<i32, MuninError> {
     Err(MuninError::OverlongVarInt)
 }
 
-/// Maximum length or count accepted by [`read_7bit_length`].
+/// Maximum byte-buffer length accepted by [`read_7bit_length`].
 ///
 /// 256 MiB is well above the largest record found in real MSBuild binlogs
 /// and well below `i32::MAX` (~2 GiB). Values larger than this from an
 /// untrusted binlog are treated as malformed input rather than being passed
-/// to `Vec::with_capacity` / `vec![0u8; n]`, which would attempt a huge
-/// allocation and abort or exhaust memory.
+/// to `vec![0u8; n]`, which would attempt a huge allocation and abort or
+/// exhaust memory. For collection element counts use [`MAX_BINLOG_ELEMENT_COUNT`]
+/// and [`read_7bit_count`] instead.
 pub const MAX_BINLOG_FIELD_LEN: usize = 256 * 1024 * 1024; // 256 MiB
 
 /// Maximum element count accepted by [`read_7bit_count`].
