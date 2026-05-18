@@ -34,18 +34,86 @@ pub fn read_7bit_int(reader: &mut impl Read) -> Result<i32, MuninError> {
     Err(MuninError::OverlongVarInt)
 }
 
+/// Maximum byte-buffer length accepted by [`read_7bit_length`].
+///
+/// 256 MiB is well above the largest record found in real MSBuild binlogs
+/// and well below `i32::MAX` (~2 GiB). Values larger than this from an
+/// untrusted binlog are treated as malformed input rather than being passed
+/// to `vec![0u8; n]`, which would attempt a huge allocation and abort or
+/// exhaust memory. For collection element counts use [`MAX_BINLOG_ELEMENT_COUNT`]
+/// and [`read_7bit_count`] instead.
+pub const MAX_BINLOG_FIELD_LEN: usize = 256 * 1024 * 1024; // 256 MiB
+
+/// Maximum element count accepted by [`read_7bit_count`].
+///
+/// 1,048,576 (2²⁰) elements is far above any count found in real MSBuild
+/// binlogs. Unlike byte buffers, each element in a `Vec<String>`,
+/// `Vec<TaskItem>`, or `Vec<NameValuePair>` multiplies the allocation by the
+/// element size, which varies by type and can be much larger than 24 bytes.
+/// Using the same 256 MiB ceiling as byte lengths would permit multi-GiB
+/// allocations from a count field alone; this lower limit bounds that risk.
+pub const MAX_BINLOG_ELEMENT_COUNT: usize = 1 << 20; // 1,048,576
+
+/// Read a 7-bit variable-length encoded byte-buffer length and validate that
+/// it is non-negative and within [`MAX_BINLOG_FIELD_LEN`] before casting
+/// to `usize`.
+///
+/// On the wire, lengths are encoded as signed `i32` (matching .NET's
+/// `BinaryWriter.Write7BitEncodedInt`). A malformed binlog could supply a
+/// negative value which, if cast directly with `as usize`, would sign-extend
+/// to a huge `usize` and cause `vec![0u8; n]` to abort or exhaust memory.
+/// Even a large *positive* value can trigger the same abort. Use this helper
+/// only for byte-buffer lengths (e.g. `read_dotnet_string`, record payloads).
+/// For collection element counts use [`read_7bit_count`] instead.
+///
+/// `what` names the field being read; it is included in the error message
+/// to aid debugging malformed inputs.
+pub fn read_7bit_length(reader: &mut impl Read, what: &'static str) -> Result<usize, MuninError> {
+    let n = read_7bit_int(reader)?;
+    if n < 0 {
+        return Err(MuninError::InvalidFormat(format!("negative {what}: {n}")));
+    }
+    let n = n as usize;
+    if n > MAX_BINLOG_FIELD_LEN {
+        return Err(MuninError::InvalidFormat(format!(
+            "{what} too large: {n} (max {MAX_BINLOG_FIELD_LEN})"
+        )));
+    }
+    Ok(n)
+}
+
+/// Read a 7-bit variable-length encoded element count and validate that it
+/// is non-negative and within [`MAX_BINLOG_ELEMENT_COUNT`] before casting
+/// to `usize`.
+///
+/// Use this instead of [`read_7bit_length`] at every call site that turns a
+/// parsed varint into a collection capacity (`Vec::with_capacity`). Each
+/// element type (`String`, `TaskItem`, `NameValuePair`, `ProfileEntry`, …)
+/// varies in size; using the 256 MiB byte-length ceiling for element counts
+/// would allow multi-GiB allocations from a single count field.
+///
+/// `what` names the field being read; it is included in the error message
+/// to aid debugging malformed inputs.
+pub fn read_7bit_count(reader: &mut impl Read, what: &'static str) -> Result<usize, MuninError> {
+    let n = read_7bit_int(reader)?;
+    if n < 0 {
+        return Err(MuninError::InvalidFormat(format!("negative {what}: {n}")));
+    }
+    let n = n as usize;
+    if n > MAX_BINLOG_ELEMENT_COUNT {
+        return Err(MuninError::InvalidFormat(format!(
+            "{what} too large: {n} (max {MAX_BINLOG_ELEMENT_COUNT})"
+        )));
+    }
+    Ok(n)
+}
+
 /// Read a .NET `BinaryWriter`-style length-prefixed UTF-8 string.
 ///
 /// The length (in bytes) is encoded as a 7-bit variable-length integer,
 /// followed by that many bytes of UTF-8 data.
 pub fn read_dotnet_string(reader: &mut impl Read) -> Result<String, MuninError> {
-    let len = read_7bit_int(reader)?;
-    if len < 0 {
-        return Err(MuninError::InvalidFormat(
-            "negative string length".to_string(),
-        ));
-    }
-    let len = len as usize;
+    let len = read_7bit_length(reader, "string length")?;
     if len == 0 {
         return Ok(String::new());
     }

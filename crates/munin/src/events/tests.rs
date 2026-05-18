@@ -1715,3 +1715,98 @@ fn build_canceled_with_various_messages() {
     let event = read_build_canceled(&mut cursor, &strings, 18).unwrap();
     assert_eq!(event.fields.message.as_dedup(), Some("project.csproj"));
 }
+
+// ===========================================================================
+// #14: Regression tests — negative collection counts
+// ===========================================================================
+
+#[test]
+fn rejects_negative_profile_entry_count() {
+    // Version 5: reads has_profile_data bool then the profile entry count.
+    // A negative count should be rejected with InvalidFormat.
+    let (strings, nvl) = make_tables();
+    let mut data = encode_empty_fields(); // flags NONE
+    data.extend(encode_7bit(0)); // project_file = null
+    data.extend(encode_bool(true)); // has_profile_data = true
+    data.extend_from_slice(&[0xFF, 0xFF, 0xFF, 0xFF, 0x0F]); // count = -1
+    let mut cursor = Cursor::new(data);
+    let err = read_project_evaluation_finished(&mut cursor, &strings, &nvl, 5).unwrap_err();
+    assert!(
+        matches!(err, crate::error::MuninError::InvalidFormat(_)),
+        "expected InvalidFormat, got {err:?}"
+    );
+}
+
+#[test]
+fn rejects_negative_string_list_count() {
+    // read_string_list immediately reads the count; -1 should be rejected.
+    let (strings, _) = make_tables();
+    let data: Vec<u8> = vec![0xFF, 0xFF, 0xFF, 0xFF, 0x0F]; // count = -1
+    let mut cursor = Cursor::new(data);
+    let err = super::read_string_list(&mut cursor, &strings).unwrap_err();
+    assert!(
+        matches!(err, crate::error::MuninError::InvalidFormat(_)),
+        "expected InvalidFormat, got {err:?}"
+    );
+}
+
+#[test]
+fn rejects_negative_task_item_count() {
+    // read_task_item_list immediately reads the count; -1 should be rejected.
+    let (strings, nvl) = make_tables();
+    let data: Vec<u8> = vec![0xFF, 0xFF, 0xFF, 0xFF, 0x0F]; // count = -1
+    let mut cursor = Cursor::new(data);
+    let err = super::read_task_item_list(&mut cursor, &strings, &nvl, 18).unwrap_err();
+    assert!(
+        matches!(err, crate::error::MuninError::InvalidFormat(_)),
+        "expected InvalidFormat, got {err:?}"
+    );
+}
+
+#[test]
+fn rejects_negative_item_count_pre_v10() {
+    // read_project_items with version < 10 reads a flat item count; -1 should be rejected.
+    let (strings, nvl) = make_tables();
+    let data: Vec<u8> = vec![0xFF, 0xFF, 0xFF, 0xFF, 0x0F]; // count = -1
+    let mut cursor = Cursor::new(data);
+    let err = super::read_project_items(&mut cursor, &strings, &nvl, 9).unwrap_err();
+    assert!(
+        matches!(err, crate::error::MuninError::InvalidFormat(_)),
+        "expected InvalidFormat, got {err:?}"
+    );
+}
+
+#[test]
+fn rejects_negative_item_group_count_v10_11() {
+    // read_project_items with version 10–11 reads a group count; -1 should be rejected.
+    let (strings, nvl) = make_tables();
+    let data: Vec<u8> = vec![0xFF, 0xFF, 0xFF, 0xFF, 0x0F]; // count = -1
+    let mut cursor = Cursor::new(data);
+    let err = super::read_project_items(&mut cursor, &strings, &nvl, 10).unwrap_err();
+    assert!(
+        matches!(err, crate::error::MuninError::InvalidFormat(_)),
+        "expected InvalidFormat, got {err:?}"
+    );
+}
+
+#[test]
+fn rejects_negative_target_output_count() {
+    // Regression: read_target_finished calls read_task_item_list for outputs.
+    // A negative output count should be rejected with InvalidFormat.
+    // Payload for version 18:
+    //   [0x00] flags NONE, [0x01] succeeded=true, [0x00][0x00][0x00] three null optional strings,
+    //   [0xFF…0x0F] task-item count = -1.
+    let (strings, nvl) = make_tables();
+    let mut data = encode_empty_fields(); // flags NONE
+    data.extend(encode_bool(true)); // succeeded
+    data.extend(encode_7bit(0)); // project_file null (v18: dedup index)
+    data.extend(encode_7bit(0)); // target_file null
+    data.extend(encode_7bit(0)); // target_name null
+    data.extend_from_slice(&[0xFF, 0xFF, 0xFF, 0xFF, 0x0F]); // target_outputs count = -1
+    let mut cursor = Cursor::new(data);
+    let err = read_target_finished(&mut cursor, &strings, &nvl, 18).unwrap_err();
+    assert!(
+        matches!(err, crate::error::MuninError::InvalidFormat(_)),
+        "expected InvalidFormat, got {err:?}"
+    );
+}

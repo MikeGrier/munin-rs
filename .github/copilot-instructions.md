@@ -34,10 +34,11 @@ terminal for cargo just because a previous step used the terminal.
 
 - **Check / build / test / clippy / doc** — always prefer these over terminal;
   they stream structured progress back to VS Code.
+- **`cargo_fmt`** — run before every commit; fix all formatting issues before
+  pushing. Use `cargo_fmt_check` in CI-like workflows to enforce this.
+- **`cargo_clippy`** — run before every commit; fix all warnings before pushing.
 - **`cargo_clean`** — use before a clean rebuild; do not run `cargo clean` in
   the terminal.
-- **`cargo_fmt` / `cargo_fmt_check`** — use for formatting checks in CI-like
-  workflows inside the editor.
 - **`cargo_add` / `cargo_remove` / `cargo_update`** — always use for
   dependency management; never manually edit Cargo.toml for dependency version
   changes when these tools are available.

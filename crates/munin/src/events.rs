@@ -18,7 +18,7 @@ use crate::{
     error::MuninError,
     fields::{read_build_event_args_fields, BuildEventArgsFields},
     nvl_table::NameValueListTable,
-    primitives::{read_7bit_int, read_bool},
+    primitives::{read_7bit_count, read_7bit_int, read_bool},
     readers::{read_dedup_string, read_optional_string, read_string_dictionary},
     string_table::StringTable,
 };
@@ -651,8 +651,8 @@ pub fn read_project_evaluation_finished(
     if file_format_version > 4 {
         has_profile_data = read_bool(reader)?;
         if has_profile_data {
-            let count = read_7bit_int(reader)?;
-            let mut entries = Vec::with_capacity(count as usize);
+            let count = read_7bit_count(reader, "profile entry count")?;
+            let mut entries = Vec::with_capacity(count);
             for _ in 0..count {
                 let location = read_evaluation_location(reader, strings, file_format_version)?;
                 let profiled = read_profiled_location(reader)?;
@@ -1046,11 +1046,11 @@ fn read_string_list(
     reader: &mut impl Read,
     strings: &StringTable,
 ) -> Result<Option<Vec<String>>, MuninError> {
-    let count = read_7bit_int(reader)?;
+    let count = read_7bit_count(reader, "string-list count")?;
     if count == 0 {
         return Ok(None);
     }
-    let mut list = Vec::with_capacity(count as usize);
+    let mut list = Vec::with_capacity(count);
     for _ in 0..count {
         if let Some(s) = read_dedup_string(reader, strings)? {
             list.push(s);
@@ -1095,11 +1095,11 @@ fn read_task_item_list(
     nvl_table: &NameValueListTable,
     file_format_version: i32,
 ) -> Result<Option<Vec<TaskItem>>, MuninError> {
-    let count = read_7bit_int(reader)?;
+    let count = read_7bit_count(reader, "task-item count")?;
     if count == 0 {
         return Ok(None);
     }
-    let mut items = Vec::with_capacity(count as usize);
+    let mut items = Vec::with_capacity(count);
     for _ in 0..count {
         items.push(read_task_item(
             reader,
@@ -1124,18 +1124,22 @@ fn read_project_items(
     file_format_version: i32,
 ) -> Result<Option<Vec<ItemGroup>>, MuninError> {
     if file_format_version < 10 {
-        let count = read_7bit_int(reader)?;
+        let count = read_7bit_count(reader, "item count")?;
         if count == 0 {
             return Ok(None);
         }
         let mut groups: Vec<ItemGroup> = Vec::new();
+        let mut group_index: std::collections::HashMap<String, usize> =
+            std::collections::HashMap::new();
         for _ in 0..count {
             let item_name = read_dotnet_string_via_reader(reader)?;
             let item = read_task_item(reader, strings, nvl_table, file_format_version)?;
-            // Group by item_name.
-            if let Some(group) = groups.iter_mut().find(|g| g.item_type == item_name) {
-                group.items.push(item);
+            // Group by item_name using a map to avoid O(n²) linear scans.
+            if let Some(&idx) = group_index.get(&item_name) {
+                groups[idx].items.push(item);
             } else {
+                let idx = groups.len();
+                group_index.insert(item_name.clone(), idx);
                 groups.push(ItemGroup {
                     item_type: item_name,
                     items: vec![item],
@@ -1144,11 +1148,11 @@ fn read_project_items(
         }
         Ok(Some(groups))
     } else if file_format_version < 12 {
-        let count = read_7bit_int(reader)?;
+        let count = read_7bit_count(reader, "item-group count")?;
         if count == 0 {
             return Ok(None);
         }
-        let mut groups = Vec::with_capacity(count as usize);
+        let mut groups = Vec::with_capacity(count);
         for _ in 0..count {
             let item_type = read_dedup_string(reader, strings)?.unwrap_or_default();
             let items = read_task_item_list(reader, strings, nvl_table, file_format_version)?

@@ -448,3 +448,83 @@ fn unknown_record_kind_skipped() {
         BinaryLogRecordKind::BuildStarted
     );
 }
+
+#[test]
+fn rejects_negative_record_length() {
+    use std::io::Write;
+
+    use flate2::{write::GzEncoder, Compression};
+
+    // Build a binlog where the first real record has a negative (-1) length.
+    // -1 encoded as a 7-bit i32 = [0xFF, 0xFF, 0xFF, 0xFF, 0x0F]
+    let mut decompressed = Vec::new();
+    decompressed.extend_from_slice(&encode_i32_le(18)); // version
+    decompressed.extend_from_slice(&encode_i32_le(18)); // min_reader_version
+                                                        // BuildStarted kind byte.
+    decompressed.extend_from_slice(&encode_7bit(BinaryLogRecordKind::BuildStarted as i32));
+    // Negative length: -1
+    decompressed.extend_from_slice(&[0xFF, 0xFF, 0xFF, 0xFF, 0x0F]);
+
+    let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
+    encoder.write_all(&decompressed).unwrap();
+    let data = encoder.finish().unwrap();
+
+    let err = BinlogIndex::open(Cursor::new(data)).unwrap_err();
+    assert!(
+        matches!(err, crate::error::MuninError::InvalidFormat(_)),
+        "expected InvalidFormat, got {err:?}"
+    );
+}
+
+#[test]
+fn rejects_oversized_record_length() {
+    use std::io::Write;
+
+    use flate2::{write::GzEncoder, Compression};
+
+    // MAX_BINLOG_FIELD_LEN + 1 = 0x1000_0001 = 268,435,457; encoded as 7-bit i32:
+    // [0x81, 0x80, 0x80, 0x80, 0x01]
+    let mut decompressed = Vec::new();
+    decompressed.extend_from_slice(&encode_i32_le(18));
+    decompressed.extend_from_slice(&encode_i32_le(18));
+    decompressed.extend_from_slice(&encode_7bit(BinaryLogRecordKind::BuildStarted as i32));
+    decompressed.extend_from_slice(&[0x81, 0x80, 0x80, 0x80, 0x01]); // MAX+1 = 0x10000001
+
+    let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
+    encoder.write_all(&decompressed).unwrap();
+    let data = encoder.finish().unwrap();
+
+    let err = BinlogIndex::open(Cursor::new(data)).unwrap_err();
+    assert!(
+        matches!(err, crate::error::MuninError::InvalidFormat(_)),
+        "expected InvalidFormat, got {err:?}"
+    );
+}
+
+#[test]
+fn rejects_negative_nvl_count_in_index() {
+    use std::io::Write;
+
+    use flate2::{write::GzEncoder, Compression};
+
+    // A NameValueList record whose count field is -1. The index builder should
+    // reject this before allocating the pairs vector.
+    // -1 encoded as 7-bit i32 = [0xFF, 0xFF, 0xFF, 0xFF, 0x0F]
+    let payload: &[u8] = &[0xFF, 0xFF, 0xFF, 0xFF, 0x0F];
+    let mut decompressed = Vec::new();
+    decompressed.extend_from_slice(&encode_i32_le(18));
+    decompressed.extend_from_slice(&encode_i32_le(18));
+    decompressed.extend_from_slice(&encode_7bit(BinaryLogRecordKind::NameValueList as i32));
+    decompressed.extend_from_slice(&encode_7bit(payload.len() as i32));
+    decompressed.extend_from_slice(payload);
+
+    let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
+    encoder.write_all(&decompressed).unwrap();
+    let data = encoder.finish().unwrap();
+
+    let err = BinlogIndex::open(Cursor::new(data)).unwrap_err();
+    assert!(
+        matches!(err, crate::error::MuninError::InvalidFormat(_)),
+        "expected InvalidFormat, got {err:?}"
+    );
+}
