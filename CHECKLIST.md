@@ -63,7 +63,7 @@ Design decisions for this work live in [DESIGN-NOTES.md](DESIGN-NOTES.md)
   header, interleaved `String` / `NameValueList` aux records sized to
   match the original index, each event record with 7-bit kind/length
   framing, terminated by `EndOfFile`.
-- [ ] **JL-3.4** Integration test
+- [x] **JL-3.4** Integration test
   `crates/munin-msbuild/tests/jsonlog_open.rs`: hand-author a small
   `.jsonlog` literal as `include_str!("data/fake.jsonlog")`, open via
   `open_json`, verify `len()`, each `meta(i)`, and each decoded
