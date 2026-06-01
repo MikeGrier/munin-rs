@@ -18,6 +18,7 @@ pub mod field_flags;
 pub mod fields;
 pub mod header;
 pub mod index;
+pub mod jsonlog;
 pub mod nvl_table;
 pub mod primitives;
 pub mod reader;

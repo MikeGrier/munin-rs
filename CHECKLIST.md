@@ -6,7 +6,7 @@ Design decisions for this work live in [DESIGN-NOTES.md](DESIGN-NOTES.md)
 
 ## M1 — Schema and module scaffold
 
-- [ ] **JL-1.1** Add `crates/munin-msbuild/src/jsonlog.rs` and declare
+- [x] **JL-1.1** Add `crates/munin-msbuild/src/jsonlog.rs` and declare
   `pub mod jsonlog;` in `crates/munin-msbuild/src/lib.rs`. The module is
   empty apart from a doc comment.
 - [ ] **JL-1.2** Add `serde` (with `derive`), `serde_json`, and
