@@ -3,4 +3,4 @@
 
 | Path to CHECKLIST.md | Status | Brief description | Design Notes |
 |----------------------|--------|-------------------|--------------|
-| [CHECKLIST.md](CHECKLIST.md) | not started | Jsonlog format + dumper, packer, and `munin-jsonlog` CLI | [DESIGN-NOTES.md](DESIGN-NOTES.md) |
+| [CHECKLIST.md](CHECKLIST.md) | in progress | Jsonlog format + dumper, packer, and `munin-jsonlog` CLI | [DESIGN-NOTES.md](DESIGN-NOTES.md) |

@@ -68,7 +68,7 @@ Design decisions for this work live in [DESIGN-NOTES.md](DESIGN-NOTES.md)
   `.jsonlog` literal as `include_str!("data/fake.jsonlog")`, open via
   `open_json`, verify `len()`, each `meta(i)`, and each decoded
   `get(i)`.
-- [ ] **JL-3.5** Integration test
+- [x] **JL-3.5** Integration test
   `crates/munin-msbuild/tests/jsonlog_roundtrip.rs`: load
   `hello.binlog`, dump to jsonlog, pack jsonlog back to a fresh binlog
   via `write_binlog`, re-open the packed binlog with `open`, assert
