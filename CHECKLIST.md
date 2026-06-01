@@ -116,10 +116,10 @@ caller-extensible regex and exact-token rules.
   current username — that would leak the redactor's environment).
   Unit-test against a synthesized index whose `BuildStarted` event
   contains a known `USERNAME`.
-- [ ] **JL-3.5-R4** Integration test
+- [x] **JL-3.5-R4** Integration test
   `crates/munin-msbuild/tests/redact_roundtrip.rs`: open
   `hello.binlog`, run a `Redactor` configured with
-  `with_token("hello")` + `with_common_patterns()` +
+  `with_token("HelloBinlog")` + `with_common_patterns()` +
   `with_autodetect_username()`, dump to jsonlog, re-open via
   `open_json`, assert (a) the token does not appear in any string,
   (b) at least one string changed vs. the unredacted index, and (c)
