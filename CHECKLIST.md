@@ -53,12 +53,12 @@ Design decisions for this work live in [DESIGN-NOTES.md](DESIGN-NOTES.md)
   carrying the string and NVL dedup tables and emits the exact byte
   sequence the matching reader would consume. Unit-test each writer
   against its reader (round-trip on random-but-fixed inputs).
-- [ ] **JL-3.2** Implement `BinlogIndex::open_json(impl Read) ->
+- [x] **JL-3.2** Implement `BinlogIndex::open_json(impl Read) ->
   Result<Self>`: parse `JsonlogFile`; for `payload_b64` events use
   bytes verbatim; for `decoded` events convert to `BinlogEvent`, then
   re-encode via the M3.1 writers into payload bytes; populate the
   same private fields as `open(...)`.
-- [ ] **JL-3.3** Implement `BinlogIndex::write_binlog(&self, impl
+- [x] **JL-3.3** Implement `BinlogIndex::write_binlog(&self, impl
   Write) -> Result<()>`: emit a gzip-compressed stream containing
   header, interleaved `String` / `NameValueList` aux records sized to
   match the original index, each event record with 7-bit kind/length

@@ -9,18 +9,20 @@
 //! keeping memory usage proportional to the compressed event data rather than
 //! the fully expanded object graph.
 
-use std::io::{Cursor, Read};
+use std::io::{Cursor, Read, Write};
 
 use crate::{
     context::{read_build_event_context, BuildEventContext},
     error::MuninError,
     field_flags::BuildEventArgsFieldFlags,
     header::{open_binlog, BinlogHeader},
+    jsonlog::schema::{JsonlogEventBody, JsonlogFile, MUNIN_JSONLOG_VERSION},
     nvl_table::{NameValueListTable, NameValuePair},
     primitives::{read_7bit_count, read_7bit_int},
     reader::{dispatch_event, ArchiveEntry, BinlogEvent},
     record_kind::BinaryLogRecordKind,
     string_table::StringTable,
+    writers::{write_7bit_int as w_7bit, WriteContext},
 };
 
 // ---------------------------------------------------------------------------
@@ -192,7 +194,166 @@ impl BinlogIndex {
         })
     }
 
-    // -- Accessors ----------------------------------------------------------
+    /// Build an index from a `.jsonlog` document (see
+    /// [`crate::jsonlog`]).
+    ///
+    /// Reconstructs the string and name-value-list tables verbatim from
+    /// the document so that dedup indices are preserved. Each event is
+    /// either base64-decoded (when stored as `payload_b64`) or
+    /// re-encoded via the `events::write_*` functions (when stored as
+    /// `decoded`) so that the resulting payload is byte-equivalent to
+    /// what the binlog reader would have consumed.
+    pub fn open_json(reader: impl Read) -> Result<Self, MuninError> {
+        let file: JsonlogFile = serde_json::from_reader(reader)
+            .map_err(|e| MuninError::InvalidFormat(format!("jsonlog parse: {e}")))?;
+        Self::from_jsonlog(file)
+    }
+
+    /// Build an index from an already-parsed [`JsonlogFile`].
+    pub fn from_jsonlog(file: JsonlogFile) -> Result<Self, MuninError> {
+        if file.munin_jsonlog_version != MUNIN_JSONLOG_VERSION {
+            return Err(MuninError::InvalidFormat(format!(
+                "unsupported jsonlog version {} (expected {})",
+                file.munin_jsonlog_version, MUNIN_JSONLOG_VERSION
+            )));
+        }
+
+        let header: BinlogHeader = file.header.into();
+        let version = header.file_format_version;
+
+        // Rebuild dedup tables verbatim to preserve indices.
+        let mut strings = StringTable::new();
+        for s in file.strings {
+            strings.add(s);
+        }
+
+        let mut nvl_table = NameValueListTable::new();
+        for entry in file.name_value_lists {
+            let pairs = entry
+                .into_iter()
+                .map(|pair| NameValuePair {
+                    key_index: pair[0] as i32,
+                    value_index: pair[1] as i32,
+                })
+                .collect();
+            nvl_table.add(pairs);
+        }
+
+        let archives: Vec<Vec<u8>> = file
+            .archives
+            .into_iter()
+            .map(|a| {
+                use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+                BASE64
+                    .decode(a.data_b64.as_bytes())
+                    .map_err(|e| MuninError::InvalidFormat(format!("archive base64: {e}")))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let mut entries: Vec<IndexEntry> = Vec::with_capacity(file.events.len());
+        let mut ctx = WriteContext::with_tables(version, strings, nvl_table);
+        for ev in file.events {
+            let record_kind = BinaryLogRecordKind::from_name(&ev.kind).ok_or_else(|| {
+                MuninError::InvalidFormat(format!("unknown event kind: {}", ev.kind))
+            })?;
+            let payload = match ev.body {
+                JsonlogEventBody::PayloadB64(s) => {
+                    use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+                    BASE64
+                        .decode(s.as_bytes())
+                        .map_err(|e| MuninError::InvalidFormat(format!("payload base64: {e}")))?
+                }
+                JsonlogEventBody::Decoded(value) => {
+                    encode_decoded_event(record_kind, value, &mut ctx)?
+                }
+            };
+            let context = extract_context(&payload, version);
+            entries.push(IndexEntry {
+                meta: EventMeta {
+                    record_kind,
+                    byte_offset: ev.byte_offset,
+                    payload_len: payload.len(),
+                    context,
+                },
+                payload,
+            });
+        }
+        let strings = ctx.strings;
+        let nvl_table = ctx.nvl_table;
+
+        Ok(Self {
+            header,
+            strings,
+            nvl_table,
+            archives,
+            entries,
+        })
+    }
+
+    /// Write `self` as a `.binlog` byte stream to `writer`.
+    ///
+    /// Emits the binlog header, then all `String` and `NameValueList`
+    /// aux records (in their stored order), then any
+    /// `ProjectImportArchive` blobs, then every event record in stored
+    /// order, terminated by an `EndOfFile` sentinel. The whole stream
+    /// is gzip-compressed to match the on-disk binlog format.
+    ///
+    /// The output is semantically equivalent to a roundtrip of the
+    /// original binlog — every `meta(i)` and decoded `get(i)` will
+    /// match — but is not guaranteed to be byte-exact, since the
+    /// original interleaving of aux and event records is not
+    /// preserved by [`crate::jsonlog::JsonlogFile`].
+    pub fn write_binlog<W: Write>(&self, writer: W) -> Result<(), MuninError> {
+        use flate2::{write::GzEncoder, Compression};
+
+        let mut gz = GzEncoder::new(writer, Compression::default());
+
+        // Header: file_format_version + min_reader_version, both little-endian i32.
+        gz.write_all(&self.header.file_format_version.to_le_bytes())?;
+        gz.write_all(&self.header.min_reader_version.to_le_bytes())?;
+
+        // All String records first, preserving original indices.
+        for s in self.strings.entries() {
+            let bytes = s.as_bytes();
+            w_7bit(&mut gz, BinaryLogRecordKind::String as i32)?;
+            w_7bit(&mut gz, bytes.len() as i32)?;
+            gz.write_all(bytes)?;
+        }
+
+        // All NameValueList records next.
+        for list in self.nvl_table.entries() {
+            // Pre-encode payload to a buffer to know length.
+            let mut buf = Vec::new();
+            w_7bit(&mut buf, list.len() as i32)?;
+            for pair in list {
+                w_7bit(&mut buf, pair.key_index)?;
+                w_7bit(&mut buf, pair.value_index)?;
+            }
+            w_7bit(&mut gz, BinaryLogRecordKind::NameValueList as i32)?;
+            w_7bit(&mut gz, buf.len() as i32)?;
+            gz.write_all(&buf)?;
+        }
+
+        // ProjectImportArchive blobs.
+        for archive in &self.archives {
+            w_7bit(&mut gz, BinaryLogRecordKind::ProjectImportArchive as i32)?;
+            w_7bit(&mut gz, archive.len() as i32)?;
+            gz.write_all(archive)?;
+        }
+
+        // Event records.
+        for entry in &self.entries {
+            w_7bit(&mut gz, entry.meta.record_kind as i32)?;
+            w_7bit(&mut gz, entry.payload.len() as i32)?;
+            gz.write_all(&entry.payload)?;
+        }
+
+        // Terminating EndOfFile sentinel.
+        w_7bit(&mut gz, BinaryLogRecordKind::EndOfFile as i32)?;
+
+        gz.finish()?;
+        Ok(())
+    }
 
     /// The parsed binlog file header.
     pub fn header(&self) -> &BinlogHeader {
@@ -448,3 +609,129 @@ fn extract_context(payload: &[u8], file_format_version: i32) -> Option<BuildEven
 
 #[cfg(test)]
 mod tests;
+
+// ---------------------------------------------------------------------------
+// Decoded-event re-encoder (jsonlog → binlog payload bytes)
+// ---------------------------------------------------------------------------
+
+/// Re-encode a decoded event (deserialized as a `serde_json::Value`) into
+/// the byte sequence the binlog reader for the same record kind would
+/// consume. Used by [`BinlogIndex::open_json`].
+fn encode_decoded_event(
+    kind: BinaryLogRecordKind,
+    value: serde_json::Value,
+    ctx: &mut WriteContext,
+) -> Result<Vec<u8>, MuninError> {
+    use crate::events as ev;
+    let mut buf = Vec::new();
+    macro_rules! enc {
+        ($Ty:ty, $write:path) => {{
+            let parsed: $Ty = serde_json::from_value(value)
+                .map_err(|e| MuninError::InvalidFormat(format!("decoded event: {e}")))?;
+            $write(&mut buf, ctx, &parsed)
+                .map_err(|e| MuninError::InvalidFormat(format!("encode event: {e}")))?;
+        }};
+    }
+    match kind {
+        BinaryLogRecordKind::BuildStarted => enc!(ev::BuildStartedEvent, ev::write_build_started),
+        BinaryLogRecordKind::BuildFinished => {
+            enc!(ev::BuildFinishedEvent, ev::write_build_finished)
+        }
+        BinaryLogRecordKind::ProjectStarted => {
+            enc!(ev::ProjectStartedEvent, ev::write_project_started)
+        }
+        BinaryLogRecordKind::ProjectFinished => {
+            enc!(ev::ProjectFinishedEvent, ev::write_project_finished)
+        }
+        BinaryLogRecordKind::TargetStarted => {
+            enc!(ev::TargetStartedEvent, ev::write_target_started)
+        }
+        BinaryLogRecordKind::TargetFinished => {
+            enc!(ev::TargetFinishedEvent, ev::write_target_finished)
+        }
+        BinaryLogRecordKind::TargetSkipped => {
+            enc!(ev::TargetSkippedEvent, ev::write_target_skipped)
+        }
+        BinaryLogRecordKind::TaskStarted => enc!(ev::TaskStartedEvent, ev::write_task_started),
+        BinaryLogRecordKind::TaskFinished => enc!(ev::TaskFinishedEvent, ev::write_task_finished),
+        BinaryLogRecordKind::TaskCommandLine => {
+            enc!(ev::TaskCommandLineEvent, ev::write_task_command_line)
+        }
+        BinaryLogRecordKind::TaskParameter => {
+            enc!(ev::TaskParameterEvent, ev::write_task_parameter)
+        }
+        BinaryLogRecordKind::Error => enc!(ev::BuildErrorEvent, ev::write_build_error),
+        BinaryLogRecordKind::Warning => enc!(ev::BuildWarningEvent, ev::write_build_warning),
+        BinaryLogRecordKind::Message => enc!(ev::BuildMessageEvent, ev::write_build_message),
+        BinaryLogRecordKind::CriticalBuildMessage => {
+            enc!(
+                ev::CriticalBuildMessageEvent,
+                ev::write_critical_build_message
+            )
+        }
+        BinaryLogRecordKind::ProjectEvaluationStarted => enc!(
+            ev::ProjectEvaluationStartedEvent,
+            ev::write_project_evaluation_started
+        ),
+        BinaryLogRecordKind::ProjectEvaluationFinished => enc!(
+            ev::ProjectEvaluationFinishedEvent,
+            ev::write_project_evaluation_finished
+        ),
+        BinaryLogRecordKind::PropertyReassignment => enc!(
+            ev::PropertyReassignmentEvent,
+            ev::write_property_reassignment
+        ),
+        BinaryLogRecordKind::UninitializedPropertyRead => enc!(
+            ev::UninitializedPropertyReadEvent,
+            ev::write_uninitialized_property_read
+        ),
+        BinaryLogRecordKind::PropertyInitialValueSet => enc!(
+            ev::PropertyInitialValueSetEvent,
+            ev::write_property_initial_value_set
+        ),
+        BinaryLogRecordKind::EnvironmentVariableRead => enc!(
+            ev::EnvironmentVariableReadEvent,
+            ev::write_environment_variable_read
+        ),
+        BinaryLogRecordKind::ResponseFileUsed => {
+            enc!(ev::ResponseFileUsedEvent, ev::write_response_file_used)
+        }
+        BinaryLogRecordKind::AssemblyLoad => enc!(ev::AssemblyLoadEvent, ev::write_assembly_load),
+        BinaryLogRecordKind::ProjectImported => {
+            enc!(ev::ProjectImportedEvent, ev::write_project_imported)
+        }
+        BinaryLogRecordKind::BuildCheckMessage => {
+            enc!(ev::BuildCheckMessageEvent, ev::write_build_message)
+        }
+        BinaryLogRecordKind::BuildCheckWarning => {
+            enc!(ev::BuildCheckWarningEvent, ev::write_build_warning)
+        }
+        BinaryLogRecordKind::BuildCheckError => {
+            enc!(ev::BuildCheckErrorEvent, ev::write_build_error)
+        }
+        BinaryLogRecordKind::BuildCheckTracing => {
+            enc!(ev::BuildCheckTracingEvent, ev::write_build_check_tracing)
+        }
+        BinaryLogRecordKind::BuildCheckAcquisition => enc!(
+            ev::BuildCheckAcquisitionEvent,
+            ev::write_build_check_acquisition
+        ),
+        BinaryLogRecordKind::BuildSubmissionStarted => enc!(
+            ev::BuildSubmissionStartedEvent,
+            ev::write_build_submission_started
+        ),
+        BinaryLogRecordKind::BuildCanceled => {
+            enc!(ev::BuildCanceledEvent, ev::write_build_canceled)
+        }
+        BinaryLogRecordKind::EndOfFile
+        | BinaryLogRecordKind::String
+        | BinaryLogRecordKind::NameValueList
+        | BinaryLogRecordKind::ProjectImportArchive => {
+            return Err(MuninError::InvalidFormat(format!(
+                "cannot encode auxiliary record kind: {:?}",
+                kind
+            )));
+        }
+    }
+    Ok(buf)
+}
