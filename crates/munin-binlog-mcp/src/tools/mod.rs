@@ -21,7 +21,7 @@
 
 use std::{collections::HashMap, fmt::Write as _, fs::File, io::BufReader};
 
-use munin::{
+use munin_msbuild::{
     events::DiagnosticLocation, fields::BuildEventArgsFields, index::BinlogIndex,
     reader::BinlogEvent, record_kind::BinaryLogRecordKind,
 };

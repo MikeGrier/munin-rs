@@ -10,7 +10,7 @@ files.** It ships two crates and a VS Code extension:
 
 | Crate | What it is |
 |---|---|
-| [`munin`](crates/munin) | Reader and seekable indexed data model for `.binlog` files. |
+| [`munin-msbuild`](crates/munin-msbuild) | Reader and seekable indexed data model for `.binlog` files. |
 | [`munin-binlog-mcp`](crates/munin-binlog-mcp) | MCP (Model Context Protocol) server that exposes binlog queries to AI agents like GitHub Copilot. |
 | [`Munin Binlog MCP` VS Code extension](crates/munin-binlog-mcp/extension) | Bundles the MCP server and registers it with VS Code automatically. |
 
@@ -21,7 +21,7 @@ The format itself is documented in the MSBuild repository:
 
 ```
 crates/
-  munin/                       # core .binlog reader + index (library)
+  munin-msbuild/               # core .binlog reader + index (library)
   munin-binlog-mcp/            # MCP server binary + library
     extension/                 # VS Code extension that bundles the binary
 .github/
@@ -82,7 +82,7 @@ Versioning, tagging, and Marketplace publishing are fully automated:
    environment -- publishes them to the VS Code Marketplace and attaches
    them to a GitHub Release.
 
-Crates.io publishing for `munin` and `munin-binlog-mcp` is currently manual.
+Crates.io publishing for `munin-msbuild` and `munin-binlog-mcp` is currently manual.
 
 ## Contributing
 

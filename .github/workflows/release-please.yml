@@ -47,7 +47,7 @@ jobs:
       release_created: ${{ steps.release.outputs.release_created }}
       pr: ${{ steps.release.outputs.pr }}
     steps:
-      - uses: googleapis/release-please-action@v4
+      - uses: googleapis/release-please-action@v5
         id: release
         with:
           # IMPORTANT: must be a PAT (personal access token) with `repo`
@@ -71,7 +71,7 @@ jobs:
     needs: release-please
     if: ${{ needs.release-please.outputs.pr != '' }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ fromJSON(needs.release-please.outputs.pr).headBranchName }}
           # Use the same PAT so the committed Cargo.lock push is associated
