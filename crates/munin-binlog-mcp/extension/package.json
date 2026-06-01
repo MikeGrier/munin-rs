@@ -2,7 +2,7 @@
     "name": "munin-binlog-mcp",
     "displayName": "Munin Binlog MCP",
     "description": "MCP server for querying MSBuild binary log (.binlog) files: errors, warnings, project tree, task timeline, and full event detail -- callable directly from Copilot Chat.",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "publisher": "MikeGrierTools",
     "license": "MIT",
     "author": {
