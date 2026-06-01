@@ -236,6 +236,15 @@ impl BinlogIndex {
         self.entries.iter().enumerate().map(|(i, e)| (i, &e.meta))
     }
 
+    /// Raw stored payload bytes for the event at `index`, or `None` if
+    /// out of range. The slice contains the record payload exactly as
+    /// it appeared after the record kind / length prefix in the
+    /// decompressed binlog stream.
+    #[allow(dead_code)]
+    pub(crate) fn payload_bytes(&self, index: usize) -> Option<&[u8]> {
+        self.entries.get(index).map(|e| e.payload.as_slice())
+    }
+
     // -- Random-access deserialization --------------------------------------
 
     /// Deserialize the event at the given sequential index (0-based).

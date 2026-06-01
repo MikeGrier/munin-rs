@@ -26,7 +26,7 @@ Design decisions for this work live in [DESIGN-NOTES.md](DESIGN-NOTES.md)
 
 ## M2 — Dumper (binlog → jsonlog)
 
-- [ ] **JL-2.1** Expose a crate-private `BinlogIndex::payload_bytes(i)
+- [x] **JL-2.1** Expose a crate-private `BinlogIndex::payload_bytes(i)
   -> &[u8]` accessor (or `entries_raw()`) so the dumper can read the
   stored payload without re-parsing.
 - [ ] **JL-2.2** Implement `jsonlog::dump_index(&BinlogIndex, impl
