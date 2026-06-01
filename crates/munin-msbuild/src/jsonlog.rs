@@ -13,3 +13,9 @@
 //! See the workspace [`DESIGN-NOTES.md`] for decision IDs `D-JL-*`.
 //!
 //! [`DESIGN-NOTES.md`]: https://github.com/MikeGrier/munin-rs/blob/main/DESIGN-NOTES.md
+
+pub mod schema;
+
+pub use schema::{
+    ArchiveB64, JsonlogEvent, JsonlogEventBody, JsonlogFile, JsonlogHeader, MUNIN_JSONLOG_VERSION,
+};
