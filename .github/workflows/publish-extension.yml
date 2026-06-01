@@ -263,7 +263,7 @@ jobs:
         # Only on tag pushes. `workflow_dispatch` runs publish to
         # Marketplace but does not create a Release (no tag to attach to).
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
