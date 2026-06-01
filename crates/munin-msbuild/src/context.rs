@@ -4,9 +4,11 @@
 //! build event (node, project, target, task, submission, project instance,
 //! and evaluation).
 
-use std::io::Read;
+use std::io::{Read, Write};
 
-use crate::{error::MuninError, primitives::read_7bit_int};
+use serde::{Deserialize, Serialize};
+
+use crate::{error::MuninError, primitives::read_7bit_int, writers::write_7bit_int};
 
 /// Sentinel value used when an evaluation ID is not available (format version ≤ 1).
 const INVALID_EVALUATION_ID: i32 = -1;
@@ -16,7 +18,7 @@ const INVALID_EVALUATION_ID: i32 = -1;
 /// All seven fields are 7-bit variable-length encoded `i32` values. The
 /// `evaluation_id` field was introduced in format version 2; for earlier
 /// versions it defaults to [`INVALID_EVALUATION_ID`] (-1).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct BuildEventContext {
     pub node_id: i32,
     pub project_context_id: i32,
@@ -55,6 +57,25 @@ pub fn read_build_event_context(
         project_instance_id,
         evaluation_id,
     })
+}
+
+/// Write a `BuildEventContext` to the stream. Inverse of
+/// [`read_build_event_context`].
+pub fn write_build_event_context<W: Write>(
+    w: &mut W,
+    ctx: &BuildEventContext,
+    file_format_version: i32,
+) -> std::io::Result<()> {
+    write_7bit_int(w, ctx.node_id)?;
+    write_7bit_int(w, ctx.project_context_id)?;
+    write_7bit_int(w, ctx.target_id)?;
+    write_7bit_int(w, ctx.task_id)?;
+    write_7bit_int(w, ctx.submission_id)?;
+    write_7bit_int(w, ctx.project_instance_id)?;
+    if file_format_version > 1 {
+        write_7bit_int(w, ctx.evaluation_id)?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]

@@ -556,3 +556,34 @@ fn properties_and_items_filtering() {
 
     tools::call("binlog_close", &json!({ "session": handle }), &mut sessions).unwrap();
 }
+
+// ── JL-4.4: jsonlog fixture helper ────────────────────────────────────────────
+
+mod common;
+
+/// Port of `summary_reports_build_succeeded` (in `src/tools/tests.rs`)
+/// to use a jsonlog-backed fixture loaded via
+/// [`common::open_jsonlog_fixture`] instead of opening the binary
+/// `hello.binlog` via the `binlog_open` MCP tool.
+///
+/// The `binlog_open` MCP tool itself remains binlog-only (per JL-4.4);
+/// this test sidesteps it by injecting a pre-loaded `BinlogIndex`
+/// through `SessionMap::insert_for_testing`.
+#[test]
+fn summary_reports_build_succeeded_via_jsonlog_fixture() {
+    let mut sessions = SessionMap::new();
+    let index = common::open_jsonlog_fixture("hello");
+    let handle = sessions.insert_for_testing("hello.jsonlog".to_string(), index);
+
+    let summary = tools::call(
+        "binlog_summary",
+        &json!({ "session": handle }),
+        &mut sessions,
+    )
+    .expect("binlog_summary should succeed");
+
+    assert!(
+        summary.contains("Build result: succeeded"),
+        "summary should report success: {summary}",
+    );
+}

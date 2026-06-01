@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0](https://github.com/MikeGrier/munin-rs/compare/v0.2.0...v0.3.0) (2026-06-01)
+
+
+### Features
+
+* automated crates.io publishing for munin-msbuild ([9b17dfc](https://github.com/MikeGrier/munin-rs/commit/9b17dfc66925cb2b3257e7f74d7082ee1943fc26))
+* automated crates.io publishing for munin-msbuild ([a34342e](https://github.com/MikeGrier/munin-rs/commit/a34342edef54ac48c154304d547a587d29b1d4b8))
+
 ## [0.2.0](https://github.com/MikeGrier/munin-rs/compare/v0.1.0...v0.2.0) (2026-05-18)
 
 

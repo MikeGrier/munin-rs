@@ -12,6 +12,7 @@ files.** It ships two crates and a VS Code extension:
 |---|---|
 | [`munin-msbuild`](crates/munin-msbuild) | Reader and seekable indexed data model for `.binlog` files. |
 | [`munin-binlog-mcp`](crates/munin-binlog-mcp) | MCP (Model Context Protocol) server that exposes binlog queries to AI agents like GitHub Copilot. |
+| [`munin-jsonlog-cli`](crates/munin-jsonlog-cli) | CLI (`munin-jsonlog`) for converting between `.binlog` and munin's `.jsonlog` format, with built-in redaction. |
 | [`Munin Binlog MCP` VS Code extension](crates/munin-binlog-mcp/extension) | Bundles the MCP server and registers it with VS Code automatically. |
 
 The format itself is documented in the MSBuild repository:
@@ -24,6 +25,7 @@ crates/
   munin-msbuild/               # core .binlog reader + index (library)
   munin-binlog-mcp/            # MCP server binary + library
     extension/                 # VS Code extension that bundles the binary
+  munin-jsonlog-cli/           # munin-jsonlog CLI: binlog <-> jsonlog with redaction
 .github/
   workflows/                   # ci, build-extension, release-please, publish-extension
   actions/workspace-version/   # composite action that reads workspace version

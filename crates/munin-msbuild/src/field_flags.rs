@@ -5,8 +5,11 @@
 //! These flag values are part of the on-disk format. Changing any value is a
 //! breaking change.
 
+use serde::{Deserialize, Serialize};
+
 /// Bitmask specifying which fields are present on a serialized build event.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct BuildEventArgsFieldFlags(u32);
 
 /// Individual flag constants. Changing any value is a breaking change.

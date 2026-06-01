@@ -95,6 +95,11 @@ impl NameValueListTable {
         Ok(Some(result))
     }
 
+    /// Borrow all stored name-value lists in insertion (index) order.
+    pub fn entries(&self) -> &[Vec<NameValuePair>] {
+        &self.entries
+    }
+
     /// Number of name-value list records ingested.
     pub fn len(&self) -> usize {
         self.entries.len()
