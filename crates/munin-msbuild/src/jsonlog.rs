@@ -22,3 +22,6 @@ pub use dumper::{build, dump_index, dump_index_pretty};
 pub use schema::{
     ArchiveB64, JsonlogEvent, JsonlogEventBody, JsonlogFile, JsonlogHeader, MUNIN_JSONLOG_VERSION,
 };
+
+#[cfg(test)]
+mod tests;

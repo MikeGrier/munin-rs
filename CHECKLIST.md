@@ -36,7 +36,7 @@ Design decisions for this work live in [DESIGN-NOTES.md](DESIGN-NOTES.md)
 - [x] **JL-2.3** Add a `--pretty` analogue: `dump_index_pretty` that
   uses `serde_json::to_writer_pretty`. The non-pretty form uses
   `to_writer`.
-- [ ] **JL-2.4** Unit tests in `jsonlog/tests.rs` covering at least 10
+- [x] **JL-2.4** Unit tests in `jsonlog/tests.rs` covering at least 10
   cases: empty index, header-only, each major event kind, an archive
   blob, and a forced-fallback unknown-kind payload.
 - [ ] **JL-2.5** Integration test
