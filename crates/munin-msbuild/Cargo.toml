@@ -1,7 +1,7 @@
 # Copyright (c) Michael Grier
 
 [package]
-name          = "munin"
+name          = "munin-msbuild"
 description   = "Reader and seekable indexed data model for MSBuild binary log (.binlog) files."
 keywords      = ["msbuild", "binlog", "build", "parser", "dotnet"]
 categories    = ["parser-implementations", "development-tools"]
