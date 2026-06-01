@@ -29,11 +29,11 @@ Design decisions for this work live in [DESIGN-NOTES.md](DESIGN-NOTES.md)
 - [x] **JL-2.1** Expose a crate-private `BinlogIndex::payload_bytes(i)
   -> &[u8]` accessor (or `entries_raw()`) so the dumper can read the
   stored payload without re-parsing.
-- [ ] **JL-2.2** Implement `jsonlog::dump_index(&BinlogIndex, impl
+- [x] **JL-2.2** Implement `jsonlog::dump_index(&BinlogIndex, impl
   Write) -> Result<()>`: write header, strings, NVL pairs, archives
   (base64), and each event in stored order. On decode success emit
   `decoded`; on decode failure emit `payload_b64` of the stored bytes.
-- [ ] **JL-2.3** Add a `--pretty` analogue: `dump_index_pretty` that
+- [x] **JL-2.3** Add a `--pretty` analogue: `dump_index_pretty` that
   uses `serde_json::to_writer_pretty`. The non-pretty form uses
   `to_writer`.
 - [ ] **JL-2.4** Unit tests in `jsonlog/tests.rs` covering at least 10

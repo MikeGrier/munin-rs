@@ -15,8 +15,10 @@
 //! [`DESIGN-NOTES.md`]: https://github.com/MikeGrier/munin-rs/blob/main/DESIGN-NOTES.md
 
 pub mod decoded;
+pub mod dumper;
 pub mod schema;
 
+pub use dumper::{build, dump_index, dump_index_pretty};
 pub use schema::{
     ArchiveB64, JsonlogEvent, JsonlogEventBody, JsonlogFile, JsonlogHeader, MUNIN_JSONLOG_VERSION,
 };

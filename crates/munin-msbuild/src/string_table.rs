@@ -74,6 +74,11 @@ impl StringTable {
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
+
+    /// Borrow the stored strings in insertion (index) order.
+    pub fn entries(&self) -> &[String] {
+        &self.entries
+    }
 }
 
 #[cfg(test)]

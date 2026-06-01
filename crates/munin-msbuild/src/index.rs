@@ -240,7 +240,6 @@ impl BinlogIndex {
     /// out of range. The slice contains the record payload exactly as
     /// it appeared after the record kind / length prefix in the
     /// decompressed binlog stream.
-    #[allow(dead_code)]
     pub(crate) fn payload_bytes(&self, index: usize) -> Option<&[u8]> {
         self.entries.get(index).map(|e| e.payload.as_slice())
     }
