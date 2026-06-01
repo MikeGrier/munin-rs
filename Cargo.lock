@@ -127,20 +127,20 @@ dependencies = [
 ]
 
 [[package]]
-name = "munin"
+name = "munin-binlog-mcp"
+version = "0.2.0"
+dependencies = [
+ "munin-msbuild",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "munin-msbuild"
 version = "0.2.0"
 dependencies = [
  "flate2",
  "zip",
-]
-
-[[package]]
-name = "munin-binlog-mcp"
-version = "0.2.0"
-dependencies = [
- "munin",
- "serde",
- "serde_json",
 ]
 
 [[package]]

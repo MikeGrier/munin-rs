@@ -5,7 +5,7 @@
 //!
 //! The server speaks JSON-RPC 2.0 over stdio using newline-delimited messages.
 //! Each tool invocation operates on an in-memory `BinlogIndex` (from the
-//! `munin` crate) loaded from a `.binlog` file. Multiple binlog files can be
+//! `munin-msbuild` crate) loaded from a `.binlog` file. Multiple binlog files can be
 //! open simultaneously, keyed by opaque session handles.
 
 use std::io::{self, BufRead};

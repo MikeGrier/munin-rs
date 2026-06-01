@@ -10,7 +10,7 @@ use super::*;
 fn hello_binlog_path() -> String {
     let mut p = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     p.push(".."); // crates/
-    p.push("munin");
+    p.push("munin-msbuild");
     p.push("tests");
     p.push("data");
     p.push("hello.binlog");
