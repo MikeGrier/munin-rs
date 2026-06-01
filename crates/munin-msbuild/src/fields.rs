@@ -9,6 +9,8 @@
 
 use std::io::Read;
 
+use serde::{Deserialize, Serialize};
+
 use crate::{
     context::{read_build_event_context, BuildEventContext},
     error::MuninError,
@@ -18,7 +20,7 @@ use crate::{
 };
 
 /// Extended data fields for custom/extended event types.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExtendedDataFields {
     pub extended_type: Option<String>,
     pub extended_metadata_index: i32,
@@ -26,7 +28,7 @@ pub struct ExtendedDataFields {
 }
 
 /// The common fields decoded from the flag-driven prefix of a build event.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BuildEventArgsFields {
     pub flags: BuildEventArgsFieldFlags,
     pub message: Option<String>,

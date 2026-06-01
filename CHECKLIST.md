@@ -17,7 +17,7 @@ Design decisions for this work live in [DESIGN-NOTES.md](DESIGN-NOTES.md)
   Vec<ArchiveB64>, events: Vec<JsonlogEvent> }` and `JsonlogEvent`
   tagged by `kind` with either a `decoded` payload or `payload_b64`
   for unknowns. Include `byte_offset: u64` per event.
-- [ ] **JL-1.4** In `jsonlog::decoded`, add one serde struct per
+- [x] **JL-1.4** In `jsonlog::decoded`, add one serde struct per
   `BinlogEvent` variant mirroring its fields with JSON-friendly types
   (no `Cursor`, no raw bytes). One file per ~10 variants is fine.
 - [ ] **JL-1.5** Add `From<&events::FooEvent> for decoded::Foo` and

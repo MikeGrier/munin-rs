@@ -6,6 +6,8 @@
 
 use std::io::Read;
 
+use serde::{Deserialize, Serialize};
+
 use crate::error::MuninError;
 
 /// Maximum number of bytes a 7-bit encoded `i32` can occupy.
@@ -151,7 +153,7 @@ pub fn read_guid(reader: &mut impl Read) -> Result<[u8; 16], MuninError> {
 }
 
 /// A .NET `DateTime` decoded from the binlog stream.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BinlogDateTime {
     /// Ticks since 0001-01-01T00:00:00.
     pub ticks: i64,

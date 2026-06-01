@@ -13,6 +13,8 @@
 
 use std::io::Read;
 
+use serde::{Deserialize, Serialize};
+
 use crate::{
     context::{read_build_event_context, BuildEventContext},
     error::MuninError,
@@ -55,7 +57,7 @@ fn read_diagnostic_fields(
 }
 
 /// Location fields for diagnostic events (Error, Warning, CriticalBuildMessage).
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DiagnosticLocation {
     pub subcategory: Option<String>,
     pub code: Option<String>,
@@ -72,7 +74,7 @@ pub struct DiagnosticLocation {
 // ---------------------------------------------------------------------------
 
 /// `BuildStarted` event — emitted once at the start of the build.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BuildStartedEvent {
     pub fields: BuildEventArgsFields,
     /// Environment variables at build start (key → value).
@@ -95,7 +97,7 @@ pub fn read_build_started(
 }
 
 /// `BuildFinished` event — emitted once at the end of the build.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BuildFinishedEvent {
     pub fields: BuildEventArgsFields,
     pub succeeded: bool,
@@ -113,7 +115,7 @@ pub fn read_build_finished(
 }
 
 /// `ProjectStarted` event.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectStartedEvent {
     pub fields: BuildEventArgsFields,
     pub parent_context: Option<BuildEventContext>,
@@ -175,7 +177,7 @@ pub fn read_project_started(
 }
 
 /// `ProjectFinished` event.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectFinishedEvent {
     pub fields: BuildEventArgsFields,
     pub project_file: Option<String>,
@@ -203,7 +205,7 @@ pub fn read_project_finished(
 // ---------------------------------------------------------------------------
 
 /// `TargetStarted` event.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TargetStartedEvent {
     pub fields: BuildEventArgsFields,
     pub target_name: Option<String>,
@@ -241,7 +243,7 @@ pub fn read_target_started(
 }
 
 /// `TargetFinished` event.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TargetFinishedEvent {
     pub fields: BuildEventArgsFields,
     pub succeeded: bool,
@@ -275,7 +277,7 @@ pub fn read_target_finished(
 }
 
 /// `TargetSkipped` event.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TargetSkippedEvent {
     pub fields: BuildEventArgsFields,
     pub target_file: Option<String>,
@@ -352,7 +354,7 @@ pub fn read_target_skipped(
 // ---------------------------------------------------------------------------
 
 /// `TaskStarted` event.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskStartedEvent {
     pub fields: BuildEventArgsFields,
     pub task_name: Option<String>,
@@ -386,7 +388,7 @@ pub fn read_task_started(
 }
 
 /// `TaskFinished` event.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskFinishedEvent {
     pub fields: BuildEventArgsFields,
     pub succeeded: bool,
@@ -416,7 +418,7 @@ pub fn read_task_finished(
 }
 
 /// `TaskCommandLine` event — the command line used to invoke an external tool.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskCommandLineEvent {
     pub fields: BuildEventArgsFields,
     pub command_line: Option<String>,
@@ -440,7 +442,7 @@ pub fn read_task_command_line(
 }
 
 /// `TaskParameter` event — input/output parameters of a task.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskParameterEvent {
     pub fields: BuildEventArgsFields,
     /// `TaskParameterMessageKind` (raw i32).
@@ -485,7 +487,7 @@ pub fn read_task_parameter(
 // ---------------------------------------------------------------------------
 
 /// A build error event.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BuildErrorEvent {
     pub fields: BuildEventArgsFields,
     pub location: DiagnosticLocation,
@@ -503,7 +505,7 @@ pub fn read_build_error(
 }
 
 /// A build warning event.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BuildWarningEvent {
     pub fields: BuildEventArgsFields,
     pub location: DiagnosticLocation,
@@ -521,7 +523,7 @@ pub fn read_build_warning(
 }
 
 /// A build message event.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BuildMessageEvent {
     pub fields: BuildEventArgsFields,
 }
@@ -537,7 +539,7 @@ pub fn read_build_message(
 }
 
 /// A critical build message event (same layout as message, different severity).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CriticalBuildMessageEvent {
     pub fields: BuildEventArgsFields,
 }
@@ -557,7 +559,7 @@ pub fn read_critical_build_message(
 // ---------------------------------------------------------------------------
 
 /// `ProjectEvaluationStarted` event.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectEvaluationStartedEvent {
     pub fields: BuildEventArgsFields,
     pub project_file: Option<String>,
@@ -578,7 +580,7 @@ pub fn read_project_evaluation_started(
 }
 
 /// `ProjectEvaluationFinished` event.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectEvaluationFinishedEvent {
     pub fields: BuildEventArgsFields,
     pub project_file: Option<String>,
@@ -590,14 +592,14 @@ pub struct ProjectEvaluationFinishedEvent {
 }
 
 /// A single profiler entry from evaluation profiling data.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProfileEntry {
     pub location: EvaluationLocation,
     pub profiled_location: ProfiledLocation,
 }
 
 /// Location data for an evaluation profiler entry.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EvaluationLocation {
     pub element_name: Option<String>,
     pub description: Option<String>,
@@ -611,7 +613,7 @@ pub struct EvaluationLocation {
 }
 
 /// Timing data for an evaluation profiler entry.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct ProfiledLocation {
     pub number_of_hits: i32,
     /// Exclusive time in ticks.
@@ -681,7 +683,7 @@ pub fn read_project_evaluation_finished(
 // ---------------------------------------------------------------------------
 
 /// `PropertyReassignment` event — a property value was overwritten.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PropertyReassignmentEvent {
     pub fields: BuildEventArgsFields,
     pub property_name: Option<String>,
@@ -711,7 +713,7 @@ pub fn read_property_reassignment(
 }
 
 /// `UninitializedPropertyRead` event — a property was read before being set.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UninitializedPropertyReadEvent {
     pub fields: BuildEventArgsFields,
     pub property_name: Option<String>,
@@ -732,7 +734,7 @@ pub fn read_uninitialized_property_read(
 }
 
 /// `PropertyInitialValueSet` event — a property's initial value was set.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PropertyInitialValueSetEvent {
     pub fields: BuildEventArgsFields,
     pub property_name: Option<String>,
@@ -763,7 +765,7 @@ pub fn read_property_initial_value_set(
 // ---------------------------------------------------------------------------
 
 /// `EnvironmentVariableRead` event — an environment variable was read during evaluation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnvironmentVariableReadEvent {
     pub fields: BuildEventArgsFields,
     pub environment_variable_name: Option<String>,
@@ -801,7 +803,7 @@ pub fn read_environment_variable_read(
 }
 
 /// `ResponseFileUsed` event — a response file was consumed by MSBuild.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResponseFileUsedEvent {
     pub fields: BuildEventArgsFields,
     pub response_file_path: Option<String>,
@@ -826,7 +828,7 @@ pub fn read_response_file_used(
 // ---------------------------------------------------------------------------
 
 /// `AssemblyLoad` event — an assembly was loaded during the build.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AssemblyLoadEvent {
     pub fields: BuildEventArgsFields,
     /// `AssemblyLoadingContext` (raw i32).
@@ -864,7 +866,7 @@ pub fn read_assembly_load(
 }
 
 /// `ProjectImported` event — a project file was imported.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectImportedEvent {
     pub fields: BuildEventArgsFields,
     /// Whether the import was ignored (format version > 2 only).
@@ -915,7 +917,7 @@ pub type BuildCheckWarningEvent = BuildWarningEvent;
 pub type BuildCheckErrorEvent = BuildErrorEvent;
 
 /// `BuildCheckTracing` event — timing data for build check rules.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BuildCheckTracingEvent {
     pub fields: BuildEventArgsFields,
     /// Raw tracing data: rule name → duration ticks as string.
@@ -938,7 +940,7 @@ pub fn read_build_check_tracing(
 }
 
 /// `BuildCheckAcquisition` event — a build check rule was acquired.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BuildCheckAcquisitionEvent {
     pub fields: BuildEventArgsFields,
     pub acquisition_path: String,
@@ -966,7 +968,7 @@ pub fn read_build_check_acquisition(
 // ---------------------------------------------------------------------------
 
 /// `BuildSubmissionStarted` event — a build submission was queued.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BuildSubmissionStartedEvent {
     pub fields: BuildEventArgsFields,
     pub global_properties: Option<Vec<(String, String)>>,
@@ -1002,7 +1004,7 @@ pub fn read_build_submission_started(
 }
 
 /// `BuildCanceled` event — the build was canceled.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BuildCanceledEvent {
     pub fields: BuildEventArgsFields,
 }
@@ -1022,14 +1024,14 @@ pub fn read_build_canceled(
 // ---------------------------------------------------------------------------
 
 /// A task item (item spec + metadata).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskItem {
     pub item_spec: Option<String>,
     pub metadata: Option<Vec<(String, String)>>,
 }
 
 /// A group of items with the same type name.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ItemGroup {
     pub item_type: String,
     pub items: Vec<TaskItem>,

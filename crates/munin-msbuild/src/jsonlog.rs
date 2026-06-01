@@ -14,6 +14,7 @@
 //!
 //! [`DESIGN-NOTES.md`]: https://github.com/MikeGrier/munin-rs/blob/main/DESIGN-NOTES.md
 
+pub mod decoded;
 pub mod schema;
 
 pub use schema::{
