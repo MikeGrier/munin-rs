@@ -13,7 +13,9 @@
 
 use regex::Regex;
 
-use crate::{error::MuninError, index::BinlogIndex};
+use crate::{
+    error::MuninError, index::BinlogIndex, reader::BinlogEvent, record_kind::BinaryLogRecordKind,
+};
 
 /// A configured set of redaction rules.
 ///
@@ -90,6 +92,24 @@ impl Redactor {
         self
     }
 
+    /// On [`apply`](Self::apply), inspect the index's `BuildStarted`
+    /// event for a captured environment dictionary; for every non-empty
+    /// value under `USERNAME`, `USER`, `USERPROFILE`, or `HOME`,
+    /// register an exact-token rule mapping that value (and its
+    /// appearance inside the standard user-home path prefixes
+    /// `C:\\Users\\<u>\\`, `/home/<u>/`, `/Users/<u>/`) to
+    /// `REDACTED-USER`.
+    ///
+    /// If the `BuildStarted` event has no environment dictionary (the
+    /// build was logged without environment capture), this is a no-op.
+    /// We deliberately do **not** fall back to the host process's
+    /// current username — that would leak the redactor's environment
+    /// into someone else's binlog.
+    pub fn with_autodetect_username(mut self) -> Self {
+        self.autodetect_username = true;
+        self
+    }
+
     /// Apply all configured rules to `index`'s string table, in place.
     ///
     /// Order:
@@ -100,7 +120,12 @@ impl Redactor {
     pub fn apply(&self, index: &mut BinlogIndex) {
         // Sort exact rules by descending needle length without mutating
         // self.
-        let mut exact_order: Vec<&ExactRule> = self.exact.iter().collect();
+        let mut exact_owned: Vec<ExactRule> = Vec::new();
+        if self.autodetect_username {
+            exact_owned.extend(autodetect_username_rules(index));
+        }
+        let mut exact_order: Vec<&ExactRule> =
+            self.exact.iter().chain(exact_owned.iter()).collect();
         exact_order.sort_by_key(|r| std::cmp::Reverse(r.needle.len()));
 
         // Built-in common-pattern rules (D-RDX-1) are installed once per
@@ -112,9 +137,6 @@ impl Redactor {
         } else {
             Vec::new()
         };
-
-        // Suppress unused-field warning until R3 wires this in.
-        let _ = self.autodetect_username;
 
         for entry in index.strings_mut().entries_mut() {
             // Skip empty strings — no rule can match.
@@ -175,6 +197,69 @@ fn common_patterns() -> Vec<RegexRule> {
             "*****@*****",
         ),
     ]
+}
+
+/// Scan `index` for a `BuildStarted` event with a captured environment
+/// dictionary and synthesize exact-token rules for the user identity
+/// values it contains.
+///
+/// Returns an empty vec when no `BuildStarted` event is present, when
+/// the event has no environment dictionary, or when none of the
+/// recognized variables hold a non-empty value.
+fn autodetect_username_rules(index: &BinlogIndex) -> Vec<ExactRule> {
+    const REPLACEMENT: &str = "REDACTED-USER";
+    const KEYS: &[&str] = &["USERNAME", "USER", "USERPROFILE", "HOME"];
+
+    let mut out = Vec::new();
+
+    for i in index.indices_by_kind(BinaryLogRecordKind::BuildStarted) {
+        let Ok(Some(BinlogEvent::BuildStarted(ev))) = index.get(i) else {
+            continue;
+        };
+        let Some(env) = ev.environment.as_ref() else {
+            continue;
+        };
+        for (k, v) in env {
+            if v.is_empty() {
+                continue;
+            }
+            if !KEYS.iter().any(|w| k.eq_ignore_ascii_case(w)) {
+                continue;
+            }
+            let leaf = path_basename(v);
+            if leaf.is_empty() {
+                continue;
+            }
+            out.push(ExactRule {
+                needle: leaf.to_string(),
+                replacement: REPLACEMENT.to_string(),
+            });
+            for prefix in [
+                format!(r"C:\Users\{leaf}\"),
+                format!("/home/{leaf}/"),
+                format!("/Users/{leaf}/"),
+            ] {
+                let scrubbed = prefix.replace(leaf, REPLACEMENT);
+                out.push(ExactRule {
+                    needle: prefix,
+                    replacement: scrubbed,
+                });
+            }
+        }
+    }
+
+    out.sort_by(|a, b| a.needle.cmp(&b.needle));
+    out.dedup_by(|a, b| a.needle == b.needle);
+    out
+}
+
+/// Return the trailing path component of `s` (after the last `/` or
+/// `\`), or `s` itself if no separator is present.
+fn path_basename(s: &str) -> &str {
+    match s.rfind(['/', '\\']) {
+        Some(i) => &s[i + 1..],
+        None => s,
+    }
 }
 
 #[cfg(test)]

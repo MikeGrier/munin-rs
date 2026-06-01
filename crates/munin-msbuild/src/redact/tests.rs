@@ -181,3 +181,122 @@ fn common_patterns_run_after_exact_tokens() {
         .apply(&mut idx);
     assert_eq!(strings_of(&idx)[0], "mail ***** here");
 }
+
+/// Build an index with a single `BuildStarted` event whose `environment`
+/// dictionary has the given key/value pairs.
+fn index_with_build_started_env(env: &[(&str, &str)]) -> BinlogIndex {
+    use crate::events::BuildStartedEvent;
+    use crate::jsonlog::schema::{JsonlogEvent, JsonlogEventBody, JsonlogFile, JsonlogHeader};
+
+    let ev = BuildStartedEvent {
+        fields: Default::default(),
+        environment: Some(
+            env.iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
+        ),
+    };
+    let value = serde_json::to_value(&ev).expect("serialize BuildStartedEvent");
+
+    let file = JsonlogFile {
+        munin_jsonlog_version: 1,
+        header: JsonlogHeader {
+            file_format_version: 18,
+            min_reader_version: 18,
+        },
+        strings: Vec::new(),
+        name_value_lists: Vec::new(),
+        archives: Vec::new(),
+        events: vec![JsonlogEvent {
+            kind: "BuildStarted".to_string(),
+            byte_offset: 0,
+            body: JsonlogEventBody::Decoded(value),
+        }],
+    };
+    BinlogIndex::from_jsonlog(file).expect("from_jsonlog")
+}
+
+#[test]
+fn autodetect_username_is_noop_when_no_build_started() {
+    let mut idx = index_with_strings(&["hello alice"]);
+    Redactor::new().with_autodetect_username().apply(&mut idx);
+    assert_eq!(strings_of(&idx)[0], "hello alice");
+}
+
+#[test]
+fn autodetect_username_is_noop_when_no_environment() {
+    // index_with_build_started_env supplies env, so for the "no env"
+    // case we have to construct one explicitly.
+    use crate::events::BuildStartedEvent;
+    use crate::jsonlog::schema::{JsonlogEvent, JsonlogEventBody, JsonlogFile, JsonlogHeader};
+
+    let ev = BuildStartedEvent {
+        fields: Default::default(),
+        environment: None,
+    };
+    let value = serde_json::to_value(&ev).unwrap();
+    let file = JsonlogFile {
+        munin_jsonlog_version: 1,
+        header: JsonlogHeader {
+            file_format_version: 18,
+            min_reader_version: 18,
+        },
+        strings: vec!["hello alice".to_string()],
+        name_value_lists: Vec::new(),
+        archives: Vec::new(),
+        events: vec![JsonlogEvent {
+            kind: "BuildStarted".to_string(),
+            byte_offset: 0,
+            body: JsonlogEventBody::Decoded(value),
+        }],
+    };
+    let mut idx = BinlogIndex::from_jsonlog(file).unwrap();
+    Redactor::new().with_autodetect_username().apply(&mut idx);
+    // String table preserves the original "hello alice" — though the
+    // table also contains "BuildStarted"-related dedup strings, we only
+    // care that "alice" was NOT scrubbed (no current-process leak).
+    let entries = idx.strings().entries();
+    assert!(
+        entries.iter().any(|s| s.contains("alice")),
+        "expected 'alice' to remain when env is None: {entries:?}",
+    );
+}
+
+#[test]
+fn autodetect_username_replaces_username_value_in_strings() {
+    let mut idx = index_with_build_started_env(&[("USERNAME", "alice")]);
+    // The index's string table currently contains only what the
+    // BuildStarted event introduced. Add an entry by going through a
+    // round-trip with a string that references the username.
+    idx.strings_mut().entries_mut(); // ensure mutable borrow path compiles
+                                     // Push a string by reaching into the table.
+    let s_idx = idx.strings_mut().add("hello alice and Alice".to_string());
+    Redactor::new().with_autodetect_username().apply(&mut idx);
+    assert_eq!(
+        idx.strings().get(s_idx).unwrap(),
+        Some("hello REDACTED-USER and Alice"),
+    );
+}
+
+#[test]
+fn autodetect_username_takes_basename_for_path_values() {
+    let mut idx = index_with_build_started_env(&[("USERPROFILE", "C:\\Users\\alice")]);
+    let s = idx
+        .strings_mut()
+        .add("file=C:\\Users\\alice\\src\\foo.cs".to_string());
+    Redactor::new().with_autodetect_username().apply(&mut idx);
+    // The "C:\Users\alice\" prefix rule scrubs the full prefix, leaving
+    // the trailing path unchanged.
+    assert_eq!(
+        idx.strings().get(s).unwrap(),
+        Some("file=C:\\Users\\REDACTED-USER\\src\\foo.cs"),
+    );
+}
+
+#[test]
+fn autodetect_username_skips_empty_values() {
+    let mut idx = index_with_build_started_env(&[("USERNAME", ""), ("USER", "bob")]);
+    let s = idx.strings_mut().add("hello bob".to_string());
+    Redactor::new().with_autodetect_username().apply(&mut idx);
+    assert_eq!(idx.strings().get(s).unwrap(), Some("hello REDACTED-USER"));
+}

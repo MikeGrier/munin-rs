@@ -104,7 +104,7 @@ caller-extensible regex and exact-token rules.
   `ghr_` prefixes), Azure DevOps PATs (52-char base32),
   `Bearer <token>` HTTP header values, and email addresses. Each
   pattern gets its own unit test against a synthesized string.
-- [ ] **JL-3.5-R3** Add `with_autodetect_username(self) -> Self`
+- [x] **JL-3.5-R3** Add `with_autodetect_username(self) -> Self`
   builtin. On `apply`, walk the index's events looking for a
   `BuildStarted` event and its captured environment dictionary; pull
   `USERNAME` / `USER` / `USERPROFILE` / `HOME` values; for each
