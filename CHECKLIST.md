@@ -39,7 +39,7 @@ Design decisions for this work live in [DESIGN-NOTES.md](DESIGN-NOTES.md)
 - [x] **JL-2.4** Unit tests in `jsonlog/tests.rs` covering at least 10
   cases: empty index, header-only, each major event kind, an archive
   blob, and a forced-fallback unknown-kind payload.
-- [ ] **JL-2.5** Integration test
+- [x] **JL-2.5** Integration test
   `crates/munin-msbuild/tests/jsonlog_dump.rs`: open
   `tests/data/hello.binlog`, dump to a `Vec<u8>`, deserialize as
   `JsonlogFile`, assert `events.len() == index.len()` and that every
