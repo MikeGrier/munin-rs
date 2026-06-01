@@ -17,6 +17,17 @@ Early development. The reader and index types in the public API are
 considered stable enough to depend on; expect additive changes only until
 1.0.
 
+## jsonlog: the text-format companion
+
+`munin-msbuild` also defines a lossless JSON-Lines representation of an
+indexed binlog called **jsonlog**. Encode an in-memory [`BinlogIndex`]
+with [`jsonlog::dump_index`] and decode one with [`BinlogIndex::open_json`].
+
+The [`munin-jsonlog`](../munin-jsonlog-cli) CLI wraps these entry points
+with `dump` / `pack` subcommands and adds redaction flags
+(`--redact-token`, `--redact-regex`, `--redact-username`,
+`--redact-common`) so secrets can be scrubbed before sharing a build log.
+
 ## Example
 
 ```rust

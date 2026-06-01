@@ -1,4 +1,11 @@
 <!-- Copyright (c) Michael Grier -->
+# Completed Checklist
+
+Append-only record of completed checklist groups.
+
+## Moved 2026-06-01 --- Jsonlog format + dumper, packer, and `munin-jsonlog` CLI
+
+<!-- Copyright (c) Michael Grier -->
 # Jsonlog Checklist
 
 Design decisions for this work live in [DESIGN-NOTES.md](DESIGN-NOTES.md)
@@ -145,10 +152,11 @@ caller-extensible regex and exact-token rules.
   `fn open_jsonlog_fixture(name: &str) -> BinlogIndex` and port one
   existing hand-rolled-fixture test to use it. The `binlog_open` MCP
   tool itself stays binlog-only.
-- [ ] **JL-4.5** Integration test
+- [x] **JL-4.5** Integration test
   `crates/munin-jsonlog-cli/tests/cli_roundtrip.rs`: invoke the CLI
   binary via `assert_cmd` (add as dev-dep) on `hello.binlog`: `dump`
   to a temp file, `pack` it back, then open both with
   `BinlogIndex::open` and assert event equivalence. Update root
   `README.md`, `crates/munin-msbuild/README.md`, and add
   `crates/munin-jsonlog-cli/README.md`.
+
