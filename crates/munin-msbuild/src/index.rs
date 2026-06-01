@@ -365,6 +365,14 @@ impl BinlogIndex {
         &self.strings
     }
 
+    /// Mutable access to the string table, for in-place rewrites by
+    /// [`crate::redact::Redactor`]. Replacing an entry's contents keeps
+    /// every existing string-index reference valid, since indices are
+    /// positional.
+    pub fn strings_mut(&mut self) -> &mut StringTable {
+        &mut self.strings
+    }
+
     /// The name-value list table accumulated during indexing.
     pub fn nvl_table(&self) -> &NameValueListTable {
         &self.nvl_table

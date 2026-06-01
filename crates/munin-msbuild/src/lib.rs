@@ -24,6 +24,7 @@ pub mod primitives;
 pub mod reader;
 pub mod readers;
 pub mod record_kind;
+pub mod redact;
 pub mod string_table;
 pub mod writers;
 

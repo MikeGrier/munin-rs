@@ -74,19 +74,73 @@ Design decisions for this work live in [DESIGN-NOTES.md](DESIGN-NOTES.md)
   via `write_binlog`, re-open the packed binlog with `open`, assert
   every `meta` and decoded `get` matches the original index.
 
+## M3.5 — Redaction
+
+Provide a string-table-based redactor on `BinlogIndex` for stripping
+usernames, paths, secrets, and other sensitive data from a captured
+binlog before sharing it (e.g. as a `.jsonlog`). Functional parity with
+`binlogtool redact` (MIT-licensed reference, source not open) plus
+caller-extensible regex and exact-token rules.
+
+- [x] **JL-3.5-R1** Add `regex = "1"` to `munin-msbuild` and define
+  `pub mod redact` in `lib.rs`. In `src/redact.rs` define
+  `pub struct Redactor { rules: Vec<Rule> }` with private `enum Rule
+  { Exact { needle, replacement }, Regex { re, replacement } }`. Add
+  `Redactor::new()`, `with_token(value)`, `with_regex(pat, repl) ->
+  Result<Self, MuninError>`, and `apply(&self, index: &mut
+  BinlogIndex)` that rewrites every entry of the index's string table
+  in place (longest-needle-first for exact rules; regex rules applied
+  in insertion order after exact rules). Add a `BinlogIndex` method
+  giving `redact` `&mut` access to the underlying `StringTable`
+  (private to the crate). Unit-test: a tiny index whose strings
+  contain a known token gets that token replaced; round-trip via
+  `dump_index` + `open_json` still works.
+- [ ] **JL-3.5-R2** Add `with_common_patterns(self) -> Self` builtin.
+  Document in `DESIGN-NOTES.md` (`D-RDX-1`) that this is munin's own
+  specification of "common sensitive patterns", not derived from any
+  closed-source catalog. Initial set, each with a fixed replacement
+  literal (replacement strings recorded in design notes): URLs with
+  embedded `user:pass@`, GitHub PATs (`ghp_`, `gho_`, `ghu_`, `ghs_`,
+  `ghr_` prefixes), Azure DevOps PATs (52-char base32),
+  `Bearer <token>` HTTP header values, and email addresses. Each
+  pattern gets its own unit test against a synthesized string.
+- [ ] **JL-3.5-R3** Add `with_autodetect_username(self) -> Self`
+  builtin. On `apply`, walk the index's events looking for a
+  `BuildStarted` event and its captured environment dictionary; pull
+  `USERNAME` / `USER` / `USERPROFILE` / `HOME` values; for each
+  non-empty value, register `Exact` rules that map the literal
+  username and its appearance inside the standard user-home path
+  prefixes (`C:\Users\<u>\`, `/home/<u>/`, `/Users/<u>/`) to a fixed
+  `REDACTED-USER` replacement. If no `BuildStarted` env data is
+  available, the rule is a no-op (do NOT fall back to the host's
+  current username — that would leak the redactor's environment).
+  Unit-test against a synthesized index whose `BuildStarted` event
+  contains a known `USERNAME`.
+- [ ] **JL-3.5-R4** Integration test
+  `crates/munin-msbuild/tests/redact_roundtrip.rs`: open
+  `hello.binlog`, run a `Redactor` configured with
+  `with_token("hello")` + `with_common_patterns()` +
+  `with_autodetect_username()`, dump to jsonlog, re-open via
+  `open_json`, assert (a) the token does not appear in any string,
+  (b) at least one string changed vs. the unredacted index, and (c)
+  the index still round-trips through `write_binlog` + `open`.
+
 ## M4 — CLI, MCP test helper, docs
 
 - [ ] **JL-4.1** Create `crates/munin-jsonlog-cli` (binary name
   `munin-jsonlog`) as a new workspace member; add `clap` (derive
   feature) and depend on `munin-msbuild`. Define the `Cli` struct
   with `dump` and `pack` subcommands but no logic yet.
-- [ ] **JL-4.2** Implement `dump <input.binlog> [-o <out>] [--pretty]`
-  using `BinlogIndex::open` + `jsonlog::dump_index`. Defaults to
-  stdout. Route all output through a single writer abstraction (one
-  trait, one method) — no scattered `println!` calls.
-- [ ] **JL-4.3** Implement `pack <input.jsonlog> [-o <out>]` using
-  `BinlogIndex::open_json` + `BinlogIndex::write_binlog`. Defaults to
-  stdout. Use the same writer abstraction as `dump`.
+- [ ] **JL-4.2** Implement `dump <input.binlog> [-o <out>] [--pretty]
+  [--redact-token VAL]... [--redact-regex 'PAT=>REPL']...
+  [--redact-username] [--redact-common]` using `BinlogIndex::open` +
+  `Redactor` + `jsonlog::dump_index`. Defaults to stdout. Route all
+  output through a single writer abstraction (one trait, one method)
+  — no scattered `println!` calls.
+- [ ] **JL-4.3** Implement `pack <input.jsonlog> [-o <out>]` with the
+  same redaction flags as `dump`, using `BinlogIndex::open_json` +
+  `Redactor` + `BinlogIndex::write_binlog`. Defaults to stdout. Use
+  the same writer abstraction as `dump`.
 - [ ] **JL-4.4** In `crates/munin-binlog-mcp/tests`, add a test helper
   `fn open_jsonlog_fixture(name: &str) -> BinlogIndex` and port one
   existing hand-rolled-fixture test to use it. The `binlog_open` MCP

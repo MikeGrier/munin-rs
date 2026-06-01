@@ -79,6 +79,15 @@ impl StringTable {
     pub fn entries(&self) -> &[String] {
         &self.entries
     }
+
+    /// Mutably borrow the stored strings in insertion (index) order.
+    ///
+    /// Provided for in-place rewrites that must preserve indices (e.g.
+    /// [`crate::redact`]). Replacing an entry's contents keeps every
+    /// existing string-index reference valid, since indices are positional.
+    pub fn entries_mut(&mut self) -> &mut [String] {
+        &mut self.entries
+    }
 }
 
 #[cfg(test)]
