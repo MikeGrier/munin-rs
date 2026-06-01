@@ -127,17 +127,17 @@ caller-extensible regex and exact-token rules.
 
 ## M4 — CLI, MCP test helper, docs
 
-- [ ] **JL-4.1** Create `crates/munin-jsonlog-cli` (binary name
+- [x] **JL-4.1** Create `crates/munin-jsonlog-cli` (binary name
   `munin-jsonlog`) as a new workspace member; add `clap` (derive
   feature) and depend on `munin-msbuild`. Define the `Cli` struct
   with `dump` and `pack` subcommands but no logic yet.
-- [ ] **JL-4.2** Implement `dump <input.binlog> [-o <out>] [--pretty]
+- [x] **JL-4.2** Implement `dump <input.binlog> [-o <out>] [--pretty]
   [--redact-token VAL]... [--redact-regex 'PAT=>REPL']...
   [--redact-username] [--redact-common]` using `BinlogIndex::open` +
   `Redactor` + `jsonlog::dump_index`. Defaults to stdout. Route all
   output through a single writer abstraction (one trait, one method)
   — no scattered `println!` calls.
-- [ ] **JL-4.3** Implement `pack <input.jsonlog> [-o <out>]` with the
+- [x] **JL-4.3** Implement `pack <input.jsonlog> [-o <out>]` with the
   same redaction flags as `dump`, using `BinlogIndex::open_json` +
   `Redactor` + `BinlogIndex::write_binlog`. Defaults to stdout. Use
   the same writer abstraction as `dump`.
