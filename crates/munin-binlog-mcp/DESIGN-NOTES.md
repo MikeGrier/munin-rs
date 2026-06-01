@@ -13,7 +13,7 @@ and `cargo-mcp` in this workspace.
 
 ## D-2: Architecture — session model
 
-The server maintains an in-memory `BinlogIndex` (from the `munin` crate) per opened file.
+The server maintains an in-memory `BinlogIndex` (from the `munin-msbuild` crate) per opened file.
 Multiple binlog files can be open simultaneously, keyed by an opaque session handle
 returned from `binlog_open`. This lets the agent compare logs or examine multiple builds.
 
