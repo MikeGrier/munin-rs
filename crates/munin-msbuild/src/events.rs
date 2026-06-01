@@ -11,18 +11,22 @@
 //! implementation in `BuildEventArgsReader.cs`. Changing the read order or
 //! field semantics is a breaking change.
 
-use std::io::Read;
+use std::io::{Read, Write};
 
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    context::{read_build_event_context, BuildEventContext},
+    context::{read_build_event_context, write_build_event_context, BuildEventContext},
     error::MuninError,
-    fields::{read_build_event_args_fields, BuildEventArgsFields},
+    fields::{read_build_event_args_fields, write_build_event_args_fields, BuildEventArgsFields},
     nvl_table::NameValueListTable,
     primitives::{read_7bit_count, read_7bit_int, read_bool},
     readers::{read_dedup_string, read_optional_string, read_string_dictionary},
     string_table::StringTable,
+    writers::{
+        write_7bit_int, write_bool, write_dedup_string, write_dotnet_string, write_guid,
+        write_i64_le, write_optional_string, write_string_dictionary, WriteContext,
+    },
 };
 
 // ---------------------------------------------------------------------------
@@ -1248,5 +1252,562 @@ fn read_profiled_location(reader: &mut impl Read) -> Result<ProfiledLocation, Mu
     })
 }
 
+// ===========================================================================
+// WRITERS — every `read_*` above has a paired `write_*` here.
+// ===========================================================================
+
+fn write_diagnostic_fields<W: Write>(
+    w: &mut W,
+    ctx: &mut WriteContext,
+    loc: &DiagnosticLocation,
+) -> std::io::Result<()> {
+    write_optional_string(w, ctx, loc.subcategory.as_deref())?;
+    write_optional_string(w, ctx, loc.code.as_deref())?;
+    write_optional_string(w, ctx, loc.file.as_deref())?;
+    write_optional_string(w, ctx, loc.project_file.as_deref())?;
+    write_7bit_int(w, loc.line_number)?;
+    write_7bit_int(w, loc.column_number)?;
+    write_7bit_int(w, loc.end_line_number)?;
+    write_7bit_int(w, loc.end_column_number)
+}
+
+fn write_string_list<W: Write>(
+    w: &mut W,
+    ctx: &mut WriteContext,
+    list: Option<&[String]>,
+) -> std::io::Result<()> {
+    match list {
+        None => write_7bit_int(w, 0),
+        Some(items) => {
+            write_7bit_int(w, items.len() as i32)?;
+            for s in items {
+                write_dedup_string(w, ctx, Some(s))?;
+            }
+            Ok(())
+        }
+    }
+}
+
+fn write_task_item<W: Write>(
+    w: &mut W,
+    ctx: &mut WriteContext,
+    item: &TaskItem,
+) -> std::io::Result<()> {
+    write_dedup_string(w, ctx, item.item_spec.as_deref())?;
+    write_string_dictionary(w, ctx, item.metadata.as_deref())
+}
+
+fn write_task_item_list<W: Write>(
+    w: &mut W,
+    ctx: &mut WriteContext,
+    items: Option<&[TaskItem]>,
+) -> std::io::Result<()> {
+    match items {
+        None => write_7bit_int(w, 0),
+        Some(items) => {
+            write_7bit_int(w, items.len() as i32)?;
+            for it in items {
+                write_task_item(w, ctx, it)?;
+            }
+            Ok(())
+        }
+    }
+}
+
+fn write_project_items<W: Write>(
+    w: &mut W,
+    ctx: &mut WriteContext,
+    items: Option<&[ItemGroup]>,
+) -> std::io::Result<()> {
+    let v = ctx.file_format_version;
+    if v < 10 {
+        let total: usize = items
+            .map(|g| g.iter().map(|gr| gr.items.len()).sum())
+            .unwrap_or(0);
+        write_7bit_int(w, total as i32)?;
+        if let Some(groups) = items {
+            for g in groups {
+                for it in &g.items {
+                    write_dotnet_string(w, &g.item_type)?;
+                    write_task_item(w, ctx, it)?;
+                }
+            }
+        }
+        Ok(())
+    } else if v < 12 {
+        match items {
+            None => write_7bit_int(w, 0),
+            Some(groups) => {
+                write_7bit_int(w, groups.len() as i32)?;
+                for g in groups {
+                    write_dedup_string(w, ctx, Some(&g.item_type))?;
+                    write_task_item_list(w, ctx, Some(&g.items))?;
+                }
+                Ok(())
+            }
+        }
+    } else {
+        // v12+: sequential groups terminated by empty item-type sentinel.
+        if let Some(groups) = items {
+            for g in groups {
+                write_dedup_string(w, ctx, Some(&g.item_type))?;
+                write_task_item_list(w, ctx, Some(&g.items))?;
+            }
+        }
+        // Empty-string sentinel terminates the group sequence. Dedup index
+        // for empty string is 1.
+        write_dedup_string(w, ctx, Some(""))
+    }
+}
+
+fn write_evaluation_location<W: Write>(
+    w: &mut W,
+    ctx: &mut WriteContext,
+    loc: &EvaluationLocation,
+) -> std::io::Result<()> {
+    write_optional_string(w, ctx, loc.element_name.as_deref())?;
+    write_optional_string(w, ctx, loc.description.as_deref())?;
+    write_optional_string(w, ctx, loc.evaluation_description.as_deref())?;
+    write_optional_string(w, ctx, loc.file.as_deref())?;
+    write_7bit_int(w, loc.kind)?;
+    write_7bit_int(w, loc.evaluation_pass)?;
+    match loc.line {
+        Some(line) => {
+            write_bool(w, true)?;
+            write_7bit_int(w, line)?;
+        }
+        None => write_bool(w, false)?,
+    }
+    if ctx.file_format_version > 5 {
+        write_i64_le(w, loc.id)?;
+        match loc.parent_id {
+            Some(pid) => {
+                write_bool(w, true)?;
+                write_i64_le(w, pid)?;
+            }
+            None => write_bool(w, false)?,
+        }
+    }
+    Ok(())
+}
+
+fn write_profiled_location<W: Write>(w: &mut W, pl: &ProfiledLocation) -> std::io::Result<()> {
+    write_7bit_int(w, pl.number_of_hits)?;
+    write_i64_le(w, pl.exclusive_time_ticks)?;
+    write_i64_le(w, pl.inclusive_time_ticks)
+}
+
+/// Write a `BuildStarted` event.
+pub fn write_build_started<W: Write>(
+    w: &mut W,
+    ctx: &mut WriteContext,
+    ev: &BuildStartedEvent,
+) -> std::io::Result<()> {
+    write_build_event_args_fields(w, ctx, &ev.fields, false)?;
+    write_string_dictionary(w, ctx, ev.environment.as_deref())
+}
+
+/// Write a `BuildFinished` event.
+pub fn write_build_finished<W: Write>(
+    w: &mut W,
+    ctx: &mut WriteContext,
+    ev: &BuildFinishedEvent,
+) -> std::io::Result<()> {
+    write_build_event_args_fields(w, ctx, &ev.fields, false)?;
+    write_bool(w, ev.succeeded)
+}
+
+/// Write a `ProjectStarted` event.
+pub fn write_project_started<W: Write>(
+    w: &mut W,
+    ctx: &mut WriteContext,
+    ev: &ProjectStartedEvent,
+) -> std::io::Result<()> {
+    write_build_event_args_fields(w, ctx, &ev.fields, false)?;
+    match &ev.parent_context {
+        Some(pc) => {
+            write_bool(w, true)?;
+            write_build_event_context(w, pc, ctx.file_format_version)?;
+        }
+        None => write_bool(w, false)?,
+    }
+    write_optional_string(w, ctx, ev.project_file.as_deref())?;
+    write_7bit_int(w, ev.project_id)?;
+    write_dedup_string(w, ctx, ev.target_names.as_deref())?;
+    write_optional_string(w, ctx, ev.tools_version.as_deref())?;
+
+    let v = ctx.file_format_version;
+    if v > 6 {
+        if v >= 18 {
+            write_string_dictionary(w, ctx, ev.global_properties.as_deref())?;
+        } else {
+            match &ev.global_properties {
+                Some(gp) => {
+                    write_bool(w, true)?;
+                    write_string_dictionary(w, ctx, Some(gp))?;
+                }
+                None => write_bool(w, false)?,
+            }
+        }
+    }
+    write_string_dictionary(w, ctx, ev.property_list.as_deref())?;
+    write_project_items(w, ctx, ev.item_list.as_deref())
+}
+
+/// Write a `ProjectFinished` event.
+pub fn write_project_finished<W: Write>(
+    w: &mut W,
+    ctx: &mut WriteContext,
+    ev: &ProjectFinishedEvent,
+) -> std::io::Result<()> {
+    write_build_event_args_fields(w, ctx, &ev.fields, false)?;
+    write_optional_string(w, ctx, ev.project_file.as_deref())?;
+    write_bool(w, ev.succeeded)
+}
+
+/// Write a `TargetStarted` event.
+pub fn write_target_started<W: Write>(
+    w: &mut W,
+    ctx: &mut WriteContext,
+    ev: &TargetStartedEvent,
+) -> std::io::Result<()> {
+    write_build_event_args_fields(w, ctx, &ev.fields, false)?;
+    write_optional_string(w, ctx, ev.target_name.as_deref())?;
+    write_optional_string(w, ctx, ev.project_file.as_deref())?;
+    write_optional_string(w, ctx, ev.target_file.as_deref())?;
+    write_optional_string(w, ctx, ev.parent_target.as_deref())?;
+    if ctx.file_format_version > 3 {
+        write_7bit_int(w, ev.build_reason)?;
+    }
+    Ok(())
+}
+
+/// Write a `TargetFinished` event.
+pub fn write_target_finished<W: Write>(
+    w: &mut W,
+    ctx: &mut WriteContext,
+    ev: &TargetFinishedEvent,
+) -> std::io::Result<()> {
+    write_build_event_args_fields(w, ctx, &ev.fields, false)?;
+    write_bool(w, ev.succeeded)?;
+    write_optional_string(w, ctx, ev.project_file.as_deref())?;
+    write_optional_string(w, ctx, ev.target_file.as_deref())?;
+    write_optional_string(w, ctx, ev.target_name.as_deref())?;
+    write_task_item_list(w, ctx, ev.target_outputs.as_deref())
+}
+
+/// Write a `TargetSkipped` event.
+pub fn write_target_skipped<W: Write>(
+    w: &mut W,
+    ctx: &mut WriteContext,
+    ev: &TargetSkippedEvent,
+) -> std::io::Result<()> {
+    write_build_event_args_fields(w, ctx, &ev.fields, true)?;
+    write_optional_string(w, ctx, ev.target_file.as_deref())?;
+    write_optional_string(w, ctx, ev.target_name.as_deref())?;
+    write_optional_string(w, ctx, ev.parent_target.as_deref())?;
+
+    let v = ctx.file_format_version;
+    if v >= 13 {
+        write_optional_string(w, ctx, ev.condition.as_deref())?;
+        write_optional_string(w, ctx, ev.evaluated_condition.as_deref())?;
+        write_bool(w, ev.originally_succeeded)?;
+    }
+    write_7bit_int(w, ev.build_reason)?;
+    if v >= 14 {
+        write_7bit_int(w, ev.skip_reason)?;
+        match &ev.original_build_event_context {
+            Some(bec) => {
+                write_bool(w, true)?;
+                write_build_event_context(w, bec, ctx.file_format_version)?;
+            }
+            None => write_bool(w, false)?,
+        }
+    }
+    Ok(())
+}
+
+/// Write a `TaskStarted` event.
+pub fn write_task_started<W: Write>(
+    w: &mut W,
+    ctx: &mut WriteContext,
+    ev: &TaskStartedEvent,
+) -> std::io::Result<()> {
+    write_build_event_args_fields(w, ctx, &ev.fields, false)?;
+    write_optional_string(w, ctx, ev.task_name.as_deref())?;
+    write_optional_string(w, ctx, ev.project_file.as_deref())?;
+    write_optional_string(w, ctx, ev.task_file.as_deref())?;
+    if ctx.file_format_version > 19 {
+        write_optional_string(w, ctx, ev.task_assembly_location.as_deref())?;
+    }
+    Ok(())
+}
+
+/// Write a `TaskFinished` event.
+pub fn write_task_finished<W: Write>(
+    w: &mut W,
+    ctx: &mut WriteContext,
+    ev: &TaskFinishedEvent,
+) -> std::io::Result<()> {
+    write_build_event_args_fields(w, ctx, &ev.fields, false)?;
+    write_bool(w, ev.succeeded)?;
+    write_optional_string(w, ctx, ev.task_name.as_deref())?;
+    write_optional_string(w, ctx, ev.project_file.as_deref())?;
+    write_optional_string(w, ctx, ev.task_file.as_deref())
+}
+
+/// Write a `TaskCommandLine` event.
+pub fn write_task_command_line<W: Write>(
+    w: &mut W,
+    ctx: &mut WriteContext,
+    ev: &TaskCommandLineEvent,
+) -> std::io::Result<()> {
+    write_build_event_args_fields(w, ctx, &ev.fields, true)?;
+    write_optional_string(w, ctx, ev.command_line.as_deref())?;
+    write_optional_string(w, ctx, ev.task_name.as_deref())
+}
+
+/// Write a `TaskParameter` event.
+pub fn write_task_parameter<W: Write>(
+    w: &mut W,
+    ctx: &mut WriteContext,
+    ev: &TaskParameterEvent,
+) -> std::io::Result<()> {
+    write_build_event_args_fields(w, ctx, &ev.fields, true)?;
+    write_7bit_int(w, ev.kind)?;
+    write_dedup_string(w, ctx, ev.item_type.as_deref())?;
+    write_task_item_list(w, ctx, ev.items.as_deref())?;
+    if ctx.file_format_version >= 21 {
+        write_dedup_string(w, ctx, ev.parameter_name.as_deref())?;
+        write_dedup_string(w, ctx, ev.property_name.as_deref())?;
+    }
+    Ok(())
+}
+
+/// Write a `BuildError` event.
+pub fn write_build_error<W: Write>(
+    w: &mut W,
+    ctx: &mut WriteContext,
+    ev: &BuildErrorEvent,
+) -> std::io::Result<()> {
+    write_build_event_args_fields(w, ctx, &ev.fields, false)?;
+    write_diagnostic_fields(w, ctx, &ev.location)
+}
+
+/// Write a `BuildWarning` event.
+pub fn write_build_warning<W: Write>(
+    w: &mut W,
+    ctx: &mut WriteContext,
+    ev: &BuildWarningEvent,
+) -> std::io::Result<()> {
+    write_build_event_args_fields(w, ctx, &ev.fields, false)?;
+    write_diagnostic_fields(w, ctx, &ev.location)
+}
+
+/// Write a `BuildMessage` event.
+pub fn write_build_message<W: Write>(
+    w: &mut W,
+    ctx: &mut WriteContext,
+    ev: &BuildMessageEvent,
+) -> std::io::Result<()> {
+    write_build_event_args_fields(w, ctx, &ev.fields, true)
+}
+
+/// Write a `CriticalBuildMessage` event.
+pub fn write_critical_build_message<W: Write>(
+    w: &mut W,
+    ctx: &mut WriteContext,
+    ev: &CriticalBuildMessageEvent,
+) -> std::io::Result<()> {
+    write_build_event_args_fields(w, ctx, &ev.fields, true)
+}
+
+/// Write a `ProjectEvaluationStarted` event.
+pub fn write_project_evaluation_started<W: Write>(
+    w: &mut W,
+    ctx: &mut WriteContext,
+    ev: &ProjectEvaluationStartedEvent,
+) -> std::io::Result<()> {
+    write_build_event_args_fields(w, ctx, &ev.fields, false)?;
+    write_dedup_string(w, ctx, ev.project_file.as_deref())
+}
+
+/// Write a `ProjectEvaluationFinished` event.
+pub fn write_project_evaluation_finished<W: Write>(
+    w: &mut W,
+    ctx: &mut WriteContext,
+    ev: &ProjectEvaluationFinishedEvent,
+) -> std::io::Result<()> {
+    write_build_event_args_fields(w, ctx, &ev.fields, false)?;
+    write_dedup_string(w, ctx, ev.project_file.as_deref())?;
+
+    let v = ctx.file_format_version;
+    if v >= 12 {
+        if v >= 18 {
+            write_string_dictionary(w, ctx, ev.global_properties.as_deref())?;
+        } else {
+            match &ev.global_properties {
+                Some(gp) => {
+                    write_bool(w, true)?;
+                    write_string_dictionary(w, ctx, Some(gp))?;
+                }
+                None => write_bool(w, false)?,
+            }
+        }
+        write_string_dictionary(w, ctx, ev.property_list.as_deref())?;
+        write_project_items(w, ctx, ev.item_list.as_deref())?;
+    }
+
+    if v > 4 {
+        write_bool(w, ev.has_profile_data)?;
+        if ev.has_profile_data {
+            let entries = ev.profile_data.as_deref().unwrap_or(&[]);
+            write_7bit_int(w, entries.len() as i32)?;
+            for e in entries {
+                write_evaluation_location(w, ctx, &e.location)?;
+                write_profiled_location(w, &e.profiled_location)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Write a `PropertyReassignment` event.
+pub fn write_property_reassignment<W: Write>(
+    w: &mut W,
+    ctx: &mut WriteContext,
+    ev: &PropertyReassignmentEvent,
+) -> std::io::Result<()> {
+    write_build_event_args_fields(w, ctx, &ev.fields, true)?;
+    write_dedup_string(w, ctx, ev.property_name.as_deref())?;
+    write_dedup_string(w, ctx, ev.previous_value.as_deref())?;
+    write_dedup_string(w, ctx, ev.new_value.as_deref())?;
+    write_dedup_string(w, ctx, ev.location.as_deref())
+}
+
+/// Write a `UninitializedPropertyRead` event.
+pub fn write_uninitialized_property_read<W: Write>(
+    w: &mut W,
+    ctx: &mut WriteContext,
+    ev: &UninitializedPropertyReadEvent,
+) -> std::io::Result<()> {
+    write_build_event_args_fields(w, ctx, &ev.fields, true)?;
+    write_dedup_string(w, ctx, ev.property_name.as_deref())
+}
+
+/// Write a `PropertyInitialValueSet` event.
+pub fn write_property_initial_value_set<W: Write>(
+    w: &mut W,
+    ctx: &mut WriteContext,
+    ev: &PropertyInitialValueSetEvent,
+) -> std::io::Result<()> {
+    write_build_event_args_fields(w, ctx, &ev.fields, true)?;
+    write_dedup_string(w, ctx, ev.property_name.as_deref())?;
+    write_dedup_string(w, ctx, ev.property_value.as_deref())?;
+    write_dedup_string(w, ctx, ev.property_source.as_deref())
+}
+
+/// Write an `EnvironmentVariableRead` event.
+pub fn write_environment_variable_read<W: Write>(
+    w: &mut W,
+    ctx: &mut WriteContext,
+    ev: &EnvironmentVariableReadEvent,
+) -> std::io::Result<()> {
+    write_build_event_args_fields(w, ctx, &ev.fields, true)?;
+    write_dedup_string(w, ctx, ev.environment_variable_name.as_deref())?;
+    if ctx.file_format_version >= 22 {
+        write_7bit_int(w, ev.line)?;
+        write_7bit_int(w, ev.column)?;
+        write_dedup_string(w, ctx, ev.file_name.as_deref())?;
+    }
+    Ok(())
+}
+
+/// Write a `ResponseFileUsed` event.
+pub fn write_response_file_used<W: Write>(
+    w: &mut W,
+    ctx: &mut WriteContext,
+    ev: &ResponseFileUsedEvent,
+) -> std::io::Result<()> {
+    write_build_event_args_fields(w, ctx, &ev.fields, false)?;
+    write_dedup_string(w, ctx, ev.response_file_path.as_deref())
+}
+
+/// Write an `AssemblyLoad` event.
+pub fn write_assembly_load<W: Write>(
+    w: &mut W,
+    ctx: &mut WriteContext,
+    ev: &AssemblyLoadEvent,
+) -> std::io::Result<()> {
+    write_build_event_args_fields(w, ctx, &ev.fields, false)?;
+    write_7bit_int(w, ev.context)?;
+    write_dedup_string(w, ctx, ev.loading_initiator.as_deref())?;
+    write_dedup_string(w, ctx, ev.assembly_name.as_deref())?;
+    write_dedup_string(w, ctx, ev.assembly_path.as_deref())?;
+    write_guid(w, &ev.mvid)?;
+    write_dedup_string(w, ctx, ev.app_domain_name.as_deref())
+}
+
+/// Write a `ProjectImported` event.
+pub fn write_project_imported<W: Write>(
+    w: &mut W,
+    ctx: &mut WriteContext,
+    ev: &ProjectImportedEvent,
+) -> std::io::Result<()> {
+    write_build_event_args_fields(w, ctx, &ev.fields, true)?;
+    if ctx.file_format_version > 2 {
+        write_bool(w, ev.import_ignored)?;
+    }
+    write_optional_string(w, ctx, ev.imported_project_file.as_deref())?;
+    write_optional_string(w, ctx, ev.unexpanded_project.as_deref())
+}
+
+/// Write a `BuildCheckTracing` event.
+pub fn write_build_check_tracing<W: Write>(
+    w: &mut W,
+    ctx: &mut WriteContext,
+    ev: &BuildCheckTracingEvent,
+) -> std::io::Result<()> {
+    write_build_event_args_fields(w, ctx, &ev.fields, false)?;
+    write_string_dictionary(w, ctx, ev.tracing_data.as_deref())
+}
+
+/// Write a `BuildCheckAcquisition` event.
+pub fn write_build_check_acquisition<W: Write>(
+    w: &mut W,
+    ctx: &mut WriteContext,
+    ev: &BuildCheckAcquisitionEvent,
+) -> std::io::Result<()> {
+    write_build_event_args_fields(w, ctx, &ev.fields, false)?;
+    write_dotnet_string(w, &ev.acquisition_path)?;
+    write_dotnet_string(w, &ev.project_path)
+}
+
+/// Write a `BuildSubmissionStarted` event.
+pub fn write_build_submission_started<W: Write>(
+    w: &mut W,
+    ctx: &mut WriteContext,
+    ev: &BuildSubmissionStartedEvent,
+) -> std::io::Result<()> {
+    write_build_event_args_fields(w, ctx, &ev.fields, false)?;
+    write_string_dictionary(w, ctx, ev.global_properties.as_deref())?;
+    write_string_list(w, ctx, ev.entry_projects_full_path.as_deref())?;
+    write_string_list(w, ctx, ev.target_names.as_deref())?;
+    write_7bit_int(w, ev.flags)?;
+    write_7bit_int(w, ev.submission_id)
+}
+
+/// Write a `BuildCanceled` event.
+pub fn write_build_canceled<W: Write>(
+    w: &mut W,
+    ctx: &mut WriteContext,
+    ev: &BuildCanceledEvent,
+) -> std::io::Result<()> {
+    write_build_event_args_fields(w, ctx, &ev.fields, false)
+}
+
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod write_tests;

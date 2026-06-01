@@ -7,16 +7,17 @@
 //! indicates which fields are present, followed by the fields themselves
 //! in a fixed order.
 
-use std::io::Read;
+use std::io::{Read, Write};
 
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    context::{read_build_event_context, BuildEventContext},
+    context::{read_build_event_context, write_build_event_context, BuildEventContext},
     error::MuninError,
     field_flags::BuildEventArgsFieldFlags,
     primitives::{read_7bit_count, read_7bit_int, read_datetime, BinlogDateTime},
     string_table::StringTable,
+    writers::{write_7bit_int, write_datetime, write_dedup_string, WriteContext},
 };
 
 /// Extended data fields for custom/extended event types.
@@ -175,6 +176,104 @@ pub fn read_build_event_args_fields(
     }
 
     Ok(fields)
+}
+
+/// Write a `BuildEventArgsFields` block to the stream. Inverse of
+/// [`read_build_event_args_fields`].
+///
+/// `write_importance`: if true, importance is written even when the
+/// IMPORTANCE flag is not set (for format versions < 13 where importance
+/// was always written for message events). Must match the value passed to
+/// the corresponding reader.
+pub fn write_build_event_args_fields<W: Write>(
+    w: &mut W,
+    ctx: &mut WriteContext,
+    fields: &BuildEventArgsFields,
+    write_importance: bool,
+) -> std::io::Result<()> {
+    let flags = fields.flags;
+    write_7bit_int(w, flags.bits() as i32)?;
+
+    if flags.contains(BuildEventArgsFieldFlags::MESSAGE) {
+        write_dedup_string(w, ctx, fields.message.as_deref())?;
+    }
+
+    if flags.contains(BuildEventArgsFieldFlags::BUILD_EVENT_CONTEXT) {
+        let bec = fields.build_event_context.unwrap_or_default();
+        write_build_event_context(w, &bec, ctx.file_format_version)?;
+    }
+
+    if flags.contains(BuildEventArgsFieldFlags::THREAD_ID) {
+        write_7bit_int(w, fields.thread_id)?;
+    }
+
+    if flags.contains(BuildEventArgsFieldFlags::HELP_KEYWORD) {
+        write_dedup_string(w, ctx, fields.help_keyword.as_deref())?;
+    }
+
+    if flags.contains(BuildEventArgsFieldFlags::SENDER_NAME) {
+        write_dedup_string(w, ctx, fields.sender_name.as_deref())?;
+    }
+
+    if flags.contains(BuildEventArgsFieldFlags::TIMESTAMP) {
+        let ts = fields.timestamp.unwrap_or_default();
+        write_datetime(w, ts)?;
+    }
+
+    if flags.contains(BuildEventArgsFieldFlags::EXTENDED) {
+        let ext = fields.extended.clone().unwrap_or_default();
+        write_dedup_string(w, ctx, ext.extended_type.as_deref())?;
+        write_7bit_int(w, ext.extended_metadata_index)?;
+        write_dedup_string(w, ctx, ext.extended_data.as_deref())?;
+    }
+
+    if flags.contains(BuildEventArgsFieldFlags::SUBCATEGORY) {
+        write_dedup_string(w, ctx, fields.subcategory.as_deref())?;
+    }
+
+    if flags.contains(BuildEventArgsFieldFlags::CODE) {
+        write_dedup_string(w, ctx, fields.code.as_deref())?;
+    }
+
+    if flags.contains(BuildEventArgsFieldFlags::FILE) {
+        write_dedup_string(w, ctx, fields.file.as_deref())?;
+    }
+
+    if flags.contains(BuildEventArgsFieldFlags::PROJECT_FILE) {
+        write_dedup_string(w, ctx, fields.project_file.as_deref())?;
+    }
+
+    if flags.contains(BuildEventArgsFieldFlags::LINE_NUMBER) {
+        write_7bit_int(w, fields.line_number)?;
+    }
+
+    if flags.contains(BuildEventArgsFieldFlags::COLUMN_NUMBER) {
+        write_7bit_int(w, fields.column_number)?;
+    }
+
+    if flags.contains(BuildEventArgsFieldFlags::END_LINE_NUMBER) {
+        write_7bit_int(w, fields.end_line_number)?;
+    }
+
+    if flags.contains(BuildEventArgsFieldFlags::END_COLUMN_NUMBER) {
+        write_7bit_int(w, fields.end_column_number)?;
+    }
+
+    if flags.contains(BuildEventArgsFieldFlags::ARGUMENTS) {
+        let args = fields.arguments.as_deref().unwrap_or(&[]);
+        write_7bit_int(w, args.len() as i32)?;
+        for a in args {
+            write_dedup_string(w, ctx, a.as_deref())?;
+        }
+    }
+
+    if (ctx.file_format_version < 13 && write_importance)
+        || (ctx.file_format_version >= 13 && flags.contains(BuildEventArgsFieldFlags::IMPORTANCE))
+    {
+        write_7bit_int(w, fields.importance)?;
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

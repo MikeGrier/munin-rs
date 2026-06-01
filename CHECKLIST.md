@@ -48,7 +48,7 @@ Design decisions for this work live in [DESIGN-NOTES.md](DESIGN-NOTES.md)
 
 ## M3 — Writer path (jsonlog → binlog)
 
-- [ ] **JL-3.1** Add `events::write_*` for every `read_*` in
+- [x] **JL-3.1** Add `events::write_*` for every `read_*` in
   `crates/munin-msbuild/src/events.rs`. Each writer takes a context
   carrying the string and NVL dedup tables and emits the exact byte
   sequence the matching reader would consume. Unit-test each writer

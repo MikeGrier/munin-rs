@@ -25,6 +25,7 @@ pub mod reader;
 pub mod readers;
 pub mod record_kind;
 pub mod string_table;
+pub mod writers;
 
 pub use context::BuildEventContext;
 pub use error::MuninError;
