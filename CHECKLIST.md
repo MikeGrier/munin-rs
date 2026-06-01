@@ -141,7 +141,7 @@ caller-extensible regex and exact-token rules.
   same redaction flags as `dump`, using `BinlogIndex::open_json` +
   `Redactor` + `BinlogIndex::write_binlog`. Defaults to stdout. Use
   the same writer abstraction as `dump`.
-- [ ] **JL-4.4** In `crates/munin-binlog-mcp/tests`, add a test helper
+- [x] **JL-4.4** In `crates/munin-binlog-mcp/tests`, add a test helper
   `fn open_jsonlog_fixture(name: &str) -> BinlogIndex` and port one
   existing hand-rolled-fixture test to use it. The `binlog_open` MCP
   tool itself stays binlog-only.

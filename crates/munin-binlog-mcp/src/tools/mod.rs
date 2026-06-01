@@ -176,6 +176,18 @@ impl SessionMap {
     fn get(&self, handle: SessionHandle) -> Option<&Session> {
         self.sessions.get(&handle)
     }
+
+    /// Insert a pre-loaded [`BinlogIndex`] and return its handle.
+    ///
+    /// Intended for tests that load indices via paths other than
+    /// [`Self::open`] (notably JL-4.4's jsonlog fixture helper). The
+    /// `path` is recorded as the displayed origin only — no I/O occurs.
+    pub fn insert_for_testing(&mut self, path: String, index: BinlogIndex) -> SessionHandle {
+        let handle = self.next_handle;
+        self.next_handle += 1;
+        self.sessions.insert(handle, Session { path, index });
+        handle
+    }
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
