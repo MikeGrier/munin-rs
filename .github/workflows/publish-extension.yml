@@ -59,7 +59,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Install Rust toolchain (${{ matrix.rust_target }})
         uses: dtolnay/rust-toolchain@stable
@@ -181,7 +181,7 @@ jobs:
 
     steps:
       - name: Checkout (for README, vsce metadata)
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Set up Node.js
         uses: actions/setup-node@v5
