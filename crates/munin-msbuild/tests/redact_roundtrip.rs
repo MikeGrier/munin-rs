@@ -72,6 +72,9 @@ fn redact_token_removes_string_and_round_trips() {
     let reopened_bin = BinlogIndex::open(Cursor::new(&binlog_bytes)).expect("open binlog");
     assert_eq!(reopened_bin.len(), index.len());
     for s in reopened_bin.strings().entries() {
-        assert!(!s.contains("helloworld"));
+        assert!(
+            !s.contains("HelloBinlog"),
+            "redacted string still contains 'HelloBinlog' after write_binlog round-trip: {s:?}",
+        );
     }
 }
