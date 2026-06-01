@@ -25,6 +25,6 @@ name = "munin-binlog-mcp"
 path = "src/main.rs"
 
 [dependencies]
-munin       = { path = "../munin", version = "0.1.0" } # x-release-please-version
+munin       = { path = "../munin", version = "0.2.0" } # x-release-please-version
 serde       = { workspace = true }
 serde_json  = { workspace = true }
