@@ -103,6 +103,49 @@ impl BinaryLogRecordKind {
             Self::String | Self::NameValueList | Self::ProjectImportArchive
         )
     }
+
+    /// Parse a record-kind name produced by the `Debug` impl (e.g.
+    /// `"BuildStarted"`, `"TaskParameter"`) back into the discriminant.
+    pub fn from_name(name: &str) -> Option<Self> {
+        Some(match name {
+            "EndOfFile" => Self::EndOfFile,
+            "BuildStarted" => Self::BuildStarted,
+            "BuildFinished" => Self::BuildFinished,
+            "ProjectStarted" => Self::ProjectStarted,
+            "ProjectFinished" => Self::ProjectFinished,
+            "TargetStarted" => Self::TargetStarted,
+            "TargetFinished" => Self::TargetFinished,
+            "TaskStarted" => Self::TaskStarted,
+            "TaskFinished" => Self::TaskFinished,
+            "Error" => Self::Error,
+            "Warning" => Self::Warning,
+            "Message" => Self::Message,
+            "TaskCommandLine" => Self::TaskCommandLine,
+            "CriticalBuildMessage" => Self::CriticalBuildMessage,
+            "ProjectEvaluationStarted" => Self::ProjectEvaluationStarted,
+            "ProjectEvaluationFinished" => Self::ProjectEvaluationFinished,
+            "ProjectImported" => Self::ProjectImported,
+            "ProjectImportArchive" => Self::ProjectImportArchive,
+            "TargetSkipped" => Self::TargetSkipped,
+            "PropertyReassignment" => Self::PropertyReassignment,
+            "UninitializedPropertyRead" => Self::UninitializedPropertyRead,
+            "EnvironmentVariableRead" => Self::EnvironmentVariableRead,
+            "PropertyInitialValueSet" => Self::PropertyInitialValueSet,
+            "NameValueList" => Self::NameValueList,
+            "String" => Self::String,
+            "TaskParameter" => Self::TaskParameter,
+            "ResponseFileUsed" => Self::ResponseFileUsed,
+            "AssemblyLoad" => Self::AssemblyLoad,
+            "BuildCheckMessage" => Self::BuildCheckMessage,
+            "BuildCheckWarning" => Self::BuildCheckWarning,
+            "BuildCheckError" => Self::BuildCheckError,
+            "BuildCheckTracing" => Self::BuildCheckTracing,
+            "BuildCheckAcquisition" => Self::BuildCheckAcquisition,
+            "BuildSubmissionStarted" => Self::BuildSubmissionStarted,
+            "BuildCanceled" => Self::BuildCanceled,
+            _ => return None,
+        })
+    }
 }
 
 #[cfg(test)]

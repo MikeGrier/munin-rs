@@ -1,0 +1,29 @@
+# Copyright (c) Michael Grier
+
+[package]
+name          = "munin-jsonlog-cli"
+description   = "CLI for converting between MSBuild binary log (.binlog) and munin's jsonlog format, with redaction support."
+keywords      = ["msbuild", "binlog", "jsonlog", "cli", "redact"]
+categories    = ["command-line-utilities", "development-tools"]
+readme        = "README.md"
+exclude       = ["CHECKLIST.md", "COMPLETED-CHECKLIST.md", "DESIGN-NOTES.md"]
+version.workspace       = true
+authors.workspace       = true
+edition.workspace       = true
+rust-version.workspace  = true
+license.workspace       = true
+repository.workspace    = true
+homepage.workspace      = true
+documentation.workspace = true
+
+[[bin]]
+name = "munin-jsonlog"
+path = "src/main.rs"
+
+[dependencies]
+munin-msbuild = { path = "../munin-msbuild", version = "0.3.0" } # x-release-please-version
+clap = { version = "4", features = ["derive"] }
+
+[dev-dependencies]
+assert_cmd = "2.2.2"
+tempfile = "3.27.0"

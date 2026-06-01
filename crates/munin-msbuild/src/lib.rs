@@ -18,12 +18,15 @@ pub mod field_flags;
 pub mod fields;
 pub mod header;
 pub mod index;
+pub mod jsonlog;
 pub mod nvl_table;
 pub mod primitives;
 pub mod reader;
 pub mod readers;
 pub mod record_kind;
+pub mod redact;
 pub mod string_table;
+pub mod writers;
 
 pub use context::BuildEventContext;
 pub use error::MuninError;

@@ -4,6 +4,7 @@
 members = [
     "crates/munin-msbuild",
     "crates/munin-binlog-mcp",
+    "crates/munin-jsonlog-cli",
 ]
 resolver = "2"
 

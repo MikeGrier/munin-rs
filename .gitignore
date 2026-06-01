@@ -32,3 +32,6 @@ crates/munin-binlog-mcp/extension/*.vsix
 testprojects/**/bin/
 testprojects/**/obj/
 testprojects/**/*.binlog
+
+# Scratch / temp files
+.scratch/

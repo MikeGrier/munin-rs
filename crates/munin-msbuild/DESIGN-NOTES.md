@@ -15,6 +15,7 @@ data.
 | D-1 | File format version scope | §Format Scope |
 | D-2 | Owned data model, not streaming callbacks | §Data Model Strategy |
 | D-3 | Our specification of the binlog format | §Binlog Format Specification |
+| D-RDX-1 | Munin's specification of "common sensitive patterns" for redaction | §Redaction Common Patterns |
 
 ---
 
@@ -179,3 +180,44 @@ Seven 7-bit encoded `i32` fields, always in this order:
 | `Guid` | 16 bytes |
 | `string` (raw) | .NET BinaryWriter format: 7-bit-length-prefixed UTF-8 |
 | `string` (dedup) | 7-bit-int index into string table |
+
+
+---
+
+### D-RDX-1: Redaction Common Patterns
+
+The `redact` module's `Redactor::with_common_patterns()` installs a fixed
+set of regex rules covering credentials and personal data that appear in
+real-world MSBuild binlogs. This catalog is **munin's own specification**.
+It is functionally inspired by the MIT-licensed `binlogtool redact`
+command, but `binlogtool`'s engine source is not published, so munin
+defines the patterns and replacements independently per the Design
+Autonomy rule.
+
+Changing any pattern or replacement is a breaking change (output of
+redaction is part of the observable behavior).
+
+| # | Target | Pattern (Rust regex) | Replacement |
+|---|--------|---------------------|-------------|
+| 1 | URL with embedded credentials `scheme://user:pass@host` | `(?P<scheme>[a-zA-Z][a-zA-Z0-9+.\-]*)://[^/\s:@]+:[^/\s:@]+@` | `$scheme://*****:*****@` |
+| 2 | GitHub personal access token | `gh[pousr]_[A-Za-z0-9]{36,}` | `gh*_*****` |
+| 3 | Azure DevOps PAT (52-char base32) | `\b[a-z2-7]{52}\b` | `*****` |
+| 4 | HTTP `Bearer` token header value | `(?i)(?P<prefix>bearer\s+)[A-Za-z0-9._\-]+` | `${prefix}*****` |
+| 5 | Email address | `[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}` | `*****@*****` |
+
+Rules are applied via `Regex::replace_all` in the order listed, **after**
+the user's exact-token rules and before any other regex rules added by
+the caller.
+
+Edge cases and known limitations:
+
+- The Azure DevOps PAT pattern (#3) is broad; a lowercase 52-character
+  hex-or-base32-shaped string in build output will be replaced. This is
+  intentional — false positives in build text are far less harmful than
+  leaking a real PAT.
+- Email pattern (#5) is RFC-loose; we accept the common case rather than
+  trying to implement RFC 5322.
+- Patterns are case-sensitive except where `(?i)` is shown.
+- We do **not** redact arbitrary GUIDs, IP addresses, file paths, or
+  registry keys. Callers who need those should add their own
+  `with_regex` rules.

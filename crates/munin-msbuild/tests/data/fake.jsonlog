@@ -1,0 +1,39 @@
+{
+  "munin_jsonlog_version": 1,
+  "header": {
+    "file_format_version": 18,
+    "min_reader_version": 18
+  },
+  "strings": [],
+  "name_value_lists": [],
+  "archives": [],
+  "events": [
+    {
+      "kind": "BuildFinished",
+      "byte_offset": 0,
+      "decoded": {
+        "fields": {
+          "flags": 0,
+          "message": null,
+          "build_event_context": null,
+          "thread_id": 0,
+          "help_keyword": null,
+          "sender_name": null,
+          "timestamp": null,
+          "extended": null,
+          "subcategory": null,
+          "code": null,
+          "file": null,
+          "project_file": null,
+          "line_number": 0,
+          "column_number": 0,
+          "end_line_number": 0,
+          "end_column_number": 0,
+          "arguments": null,
+          "importance": 0
+        },
+        "succeeded": true
+      }
+    }
+  ]
+}
