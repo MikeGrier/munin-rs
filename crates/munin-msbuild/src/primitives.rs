@@ -153,7 +153,7 @@ pub fn read_guid(reader: &mut impl Read) -> Result<[u8; 16], MuninError> {
 }
 
 /// A .NET `DateTime` decoded from the binlog stream.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct BinlogDateTime {
     /// Ticks since 0001-01-01T00:00:00.
     pub ticks: i64,

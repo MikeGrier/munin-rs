@@ -20,7 +20,7 @@ Design decisions for this work live in [DESIGN-NOTES.md](DESIGN-NOTES.md)
 - [x] **JL-1.4** In `jsonlog::decoded`, add one serde struct per
   `BinlogEvent` variant mirroring its fields with JSON-friendly types
   (no `Cursor`, no raw bytes). One file per ~10 variants is fine.
-- [ ] **JL-1.5** Add `From<&events::FooEvent> for decoded::Foo` and
+- [x] **JL-1.5** Add `From<&events::FooEvent> for decoded::Foo` and
   `From<decoded::Foo> for events::FooEvent` for every variant, with a
   unit test per variant asserting `Foo -> JSON -> Foo` equality.
 

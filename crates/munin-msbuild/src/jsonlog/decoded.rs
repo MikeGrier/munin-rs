@@ -28,3 +28,6 @@ pub use crate::events::{
     TaskFinishedEvent as TaskFinished, TaskParameterEvent as TaskParameter,
     TaskStartedEvent as TaskStarted, UninitializedPropertyReadEvent as UninitializedPropertyRead,
 };
+
+#[cfg(test)]
+mod tests;

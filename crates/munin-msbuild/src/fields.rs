@@ -20,7 +20,7 @@ use crate::{
 };
 
 /// Extended data fields for custom/extended event types.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct ExtendedDataFields {
     pub extended_type: Option<String>,
     pub extended_metadata_index: i32,

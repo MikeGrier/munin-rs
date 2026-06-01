@@ -18,7 +18,7 @@ const INVALID_EVALUATION_ID: i32 = -1;
 /// All seven fields are 7-bit variable-length encoded `i32` values. The
 /// `evaluation_id` field was introduced in format version 2; for earlier
 /// versions it defaults to [`INVALID_EVALUATION_ID`] (-1).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct BuildEventContext {
     pub node_id: i32,
     pub project_context_id: i32,
