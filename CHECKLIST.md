@@ -95,7 +95,7 @@ caller-extensible regex and exact-token rules.
   (private to the crate). Unit-test: a tiny index whose strings
   contain a known token gets that token replaced; round-trip via
   `dump_index` + `open_json` still works.
-- [ ] **JL-3.5-R2** Add `with_common_patterns(self) -> Self` builtin.
+- [x] **JL-3.5-R2** Add `with_common_patterns(self) -> Self` builtin.
   Document in `DESIGN-NOTES.md` (`D-RDX-1`) that this is munin's own
   specification of "common sensitive patterns", not derived from any
   closed-source catalog. Initial set, each with a fixed replacement

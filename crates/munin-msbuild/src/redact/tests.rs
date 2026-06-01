@@ -99,3 +99,85 @@ fn redacted_index_still_round_trips_through_jsonlog() {
     assert_eq!(reopened.strings().entries()[0], "***** was here");
     assert_eq!(reopened.strings().entries()[1], "noop");
 }
+
+#[test]
+fn common_patterns_all_compile() {
+    // Forces evaluation of every entry in the catalog.
+    let mut idx = index_with_strings(&[""]);
+    Redactor::new().with_common_patterns().apply(&mut idx);
+}
+
+#[test]
+fn common_pattern_url_with_credentials() {
+    let mut idx = index_with_strings(&[
+        "git clone https://alice:hunter2@github.com/x/y.git",
+        "ftp://u:p@host/path",
+        "no creds: https://github.com/x/y",
+    ]);
+    Redactor::new().with_common_patterns().apply(&mut idx);
+    let s = strings_of(&idx);
+    assert_eq!(s[0], "git clone https://*****:*****@github.com/x/y.git");
+    assert_eq!(s[1], "ftp://*****:*****@host/path");
+    assert_eq!(s[2], "no creds: https://github.com/x/y");
+}
+
+#[test]
+fn common_pattern_github_pat() {
+    let mut idx = index_with_strings(&[
+        "token=ghp_abcdefghijklmnopqrstuvwxyz0123456789AB",
+        "old style ghs_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ab tail",
+        "ghr_short",
+    ]);
+    Redactor::new().with_common_patterns().apply(&mut idx);
+    let s = strings_of(&idx);
+    assert_eq!(s[0], "token=gh*_*****");
+    assert_eq!(s[1], "old style gh*_***** tail");
+    assert_eq!(s[2], "ghr_short");
+}
+
+#[test]
+fn common_pattern_azure_devops_pat() {
+    // 52 lowercase base32 chars
+    let pat = "abcdefghijklmnopqrstuvwxyz234567abcdefghijklmnopqrst";
+    assert_eq!(pat.len(), 52);
+    let mut idx = index_with_strings(&[&format!("ado token: {pat}"), "short abc"]);
+    Redactor::new().with_common_patterns().apply(&mut idx);
+    let s = strings_of(&idx);
+    assert_eq!(s[0], "ado token: *****");
+    assert_eq!(s[1], "short abc");
+}
+
+#[test]
+fn common_pattern_bearer_token() {
+    let mut idx = index_with_strings(&[
+        "Authorization: Bearer eyJhbGciOi.JIUzI1.token-stuff",
+        "bearer abc.def-ghi_jkl",
+        "not a bearer",
+    ]);
+    Redactor::new().with_common_patterns().apply(&mut idx);
+    let s = strings_of(&idx);
+    assert_eq!(s[0], "Authorization: Bearer *****");
+    assert_eq!(s[1], "bearer *****");
+    assert_eq!(s[2], "not a bearer");
+}
+
+#[test]
+fn common_pattern_email() {
+    let mut idx = index_with_strings(&["contact alice@example.com please", "no email here"]);
+    Redactor::new().with_common_patterns().apply(&mut idx);
+    let s = strings_of(&idx);
+    assert_eq!(s[0], "contact *****@***** please");
+    assert_eq!(s[1], "no email here");
+}
+
+#[test]
+fn common_patterns_run_after_exact_tokens() {
+    // Exact-token rules run first; a token consumed by an exact match is
+    // not available to the regex stage.
+    let mut idx = index_with_strings(&["mail alice@example.com here"]);
+    Redactor::new()
+        .with_token("alice@example.com")
+        .with_common_patterns()
+        .apply(&mut idx);
+    assert_eq!(strings_of(&idx)[0], "mail ***** here");
+}

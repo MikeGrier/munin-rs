@@ -28,8 +28,7 @@ pub struct Redactor {
     /// Whether to walk `BuildStarted` env on [`apply`] to derive username
     /// rules. Implemented in JL-3.5-R3.
     autodetect_username: bool,
-    /// Whether to install the built-in common-pattern regex set.
-    /// Implemented in JL-3.5-R2.
+    /// Whether to install the built-in common-pattern regex set on `apply`.
     common_patterns: bool,
 }
 
@@ -78,6 +77,19 @@ impl Redactor {
         Ok(self)
     }
 
+    /// Install munin's built-in set of common sensitive-data patterns.
+    ///
+    /// See `D-RDX-1` in the crate `DESIGN-NOTES.md` for the exact pattern
+    /// list, replacement strings, and rationale. The patterns are appended
+    /// to the regex rule list on [`apply`](Self::apply), after any
+    /// caller-supplied exact-token rules and before any caller-supplied
+    /// regex rules added *after* this call. Calling more than once is a
+    /// no-op beyond the first.
+    pub fn with_common_patterns(mut self) -> Self {
+        self.common_patterns = true;
+        self
+    }
+
     /// Apply all configured rules to `index`'s string table, in place.
     ///
     /// Order:
@@ -91,9 +103,18 @@ impl Redactor {
         let mut exact_order: Vec<&ExactRule> = self.exact.iter().collect();
         exact_order.sort_by_key(|r| std::cmp::Reverse(r.needle.len()));
 
-        // Suppress unused-field warnings until R2/R3 wire these in.
+        // Built-in common-pattern rules (D-RDX-1) are installed once per
+        // `apply` call, in the documented order, *between* the caller's
+        // exact-token rules and the caller's regex rules. The caller's
+        // regex rules then follow.
+        let common: Vec<RegexRule> = if self.common_patterns {
+            common_patterns()
+        } else {
+            Vec::new()
+        };
+
+        // Suppress unused-field warning until R3 wires this in.
         let _ = self.autodetect_username;
-        let _ = self.common_patterns;
 
         for entry in index.strings_mut().entries_mut() {
             // Skip empty strings — no rule can match.
@@ -110,7 +131,7 @@ impl Redactor {
                 }
             }
 
-            for rule in &self.regex {
+            for rule in common.iter().chain(self.regex.iter()) {
                 // Cow::Borrowed when no match, so this is cheap on the
                 // common no-match path.
                 let replaced = rule.re.replace_all(entry, rule.replacement.as_str());
@@ -120,6 +141,40 @@ impl Redactor {
             }
         }
     }
+}
+
+/// Build the D-RDX-1 common-pattern rule list.
+///
+/// All patterns are compiled here so an invalid pattern in the catalog is
+/// caught by unit tests (`common_patterns_all_compile`).
+fn common_patterns() -> Vec<RegexRule> {
+    fn r(pat: &str, repl: &str) -> RegexRule {
+        RegexRule {
+            re: Regex::new(pat).expect("common-pattern regex must compile (see D-RDX-1)"),
+            replacement: repl.to_string(),
+        }
+    }
+    vec![
+        // 1. URL with embedded credentials.
+        r(
+            r"(?P<scheme>[a-zA-Z][a-zA-Z0-9+.\-]*)://[^/\s:@]+:[^/\s:@]+@",
+            "$scheme://*****:*****@",
+        ),
+        // 2. GitHub PAT.
+        r(r"gh[pousr]_[A-Za-z0-9]{36,}", "gh*_*****"),
+        // 3. Azure DevOps PAT (lowercase base32, 52 chars).
+        r(r"\b[a-z2-7]{52}\b", "*****"),
+        // 4. HTTP Bearer header.
+        r(
+            r"(?i)(?P<prefix>bearer\s+)[A-Za-z0-9._\-]+",
+            "${prefix}*****",
+        ),
+        // 5. Email address.
+        r(
+            r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}",
+            "*****@*****",
+        ),
+    ]
 }
 
 #[cfg(test)]
