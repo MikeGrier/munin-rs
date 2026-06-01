@@ -1,1 +1,0 @@
-Completed item: JL-1.5: Add From<&events::FooEvent> for decoded::Foo and From<decoded::Foo> for events::FooEvent for every variant, with a unit test per variant asserting Foo -> JSON -> Foo equality.
