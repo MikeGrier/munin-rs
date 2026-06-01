@@ -9,7 +9,7 @@ Design decisions for this work live in [DESIGN-NOTES.md](DESIGN-NOTES.md)
 - [x] **JL-1.1** Add `crates/munin-msbuild/src/jsonlog.rs` and declare
   `pub mod jsonlog;` in `crates/munin-msbuild/src/lib.rs`. The module is
   empty apart from a doc comment.
-- [ ] **JL-1.2** Add `serde` (with `derive`), `serde_json`, and
+- [x] **JL-1.2** Add `serde` (with `derive`), `serde_json`, and
   `base64` as dependencies of `crates/munin-msbuild` via `cargo_add`.
 - [ ] **JL-1.3** Define the on-disk schema in `jsonlog::schema`:
   `JsonlogFile { munin_jsonlog_version: u32, header, strings:

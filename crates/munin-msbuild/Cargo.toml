@@ -19,5 +19,8 @@ documentation.workspace = true
 [dependencies]
 flate2 = "1"
 zip = { version = "2", default-features = false, features = ["deflate"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+base64 = "0.22"
 
 [dev-dependencies]
