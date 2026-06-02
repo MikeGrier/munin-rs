@@ -510,25 +510,25 @@ impl BinlogIndex {
             .iter()
             .enumerate()
             .filter(|(_, e)| {
-                if let Some(k) = kind {
-                    if e.meta.record_kind != k {
-                        return false;
-                    }
+                if let Some(k) = kind
+                    && e.meta.record_kind != k
+                {
+                    return false;
                 }
-                if let Some(pid) = project_context_id {
-                    if e.meta.context.is_none_or(|c| c.project_context_id != pid) {
-                        return false;
-                    }
+                if let Some(pid) = project_context_id
+                    && e.meta.context.is_none_or(|c| c.project_context_id != pid)
+                {
+                    return false;
                 }
-                if let Some(tid) = target_id {
-                    if e.meta.context.is_none_or(|c| c.target_id != tid) {
-                        return false;
-                    }
+                if let Some(tid) = target_id
+                    && e.meta.context.is_none_or(|c| c.target_id != tid)
+                {
+                    return false;
                 }
-                if let Some(tsk) = task_id {
-                    if e.meta.context.is_none_or(|c| c.task_id != tsk) {
-                        return false;
-                    }
+                if let Some(tsk) = task_id
+                    && e.meta.context.is_none_or(|c| c.task_id != tsk)
+                {
+                    return false;
                 }
                 true
             })

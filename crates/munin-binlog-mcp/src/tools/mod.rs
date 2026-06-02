@@ -750,12 +750,11 @@ fn call_binlog_summary(
     let project_indices = index.indices_by_kind(BinaryLogRecordKind::ProjectStarted);
     let mut project_files: Vec<String> = Vec::new();
     for &idx in &project_indices {
-        if let Ok(Some(BinlogEvent::ProjectStarted(ref ps))) = index.get(idx) {
-            if let Some(ref pf) = ps.project_file {
-                if !project_files.contains(pf) {
-                    project_files.push(pf.clone());
-                }
-            }
+        if let Ok(Some(BinlogEvent::ProjectStarted(ref ps))) = index.get(idx)
+            && let Some(ref pf) = ps.project_file
+            && !project_files.contains(pf)
+        {
+            project_files.push(pf.clone());
         }
     }
 
@@ -1158,10 +1157,10 @@ fn call_binlog_properties(
         let proj_file = ps.project_file.as_deref().unwrap_or("<unknown>");
 
         // Apply project filter.
-        if let Some(ref pf) = project_filter {
-            if !proj_file.to_ascii_lowercase().contains(pf.as_str()) {
-                continue;
-            }
+        if let Some(ref pf) = project_filter
+            && !proj_file.to_ascii_lowercase().contains(pf.as_str())
+        {
+            continue;
         }
 
         let Some(ref props) = ps.property_list else {
@@ -1175,10 +1174,10 @@ fn call_binlog_properties(
         let mut prop_count = 0usize;
         for (k, v) in props {
             // Apply name filter.
-            if let Some(ref nf) = name_filter {
-                if !k.to_ascii_lowercase().contains(nf.as_str()) {
-                    continue;
-                }
+            if let Some(ref nf) = name_filter
+                && !k.to_ascii_lowercase().contains(nf.as_str())
+            {
+                continue;
             }
             if limit.is_some_and(|n| prop_count >= n) {
                 writeln!(out, "  ... (truncated at {prop_count})")?;
@@ -1226,10 +1225,10 @@ fn call_binlog_items(
         let proj_file = ps.project_file.as_deref().unwrap_or("<unknown>");
 
         // Apply project filter.
-        if let Some(ref pf) = project_filter {
-            if !proj_file.to_ascii_lowercase().contains(pf.as_str()) {
-                continue;
-            }
+        if let Some(ref pf) = project_filter
+            && !proj_file.to_ascii_lowercase().contains(pf.as_str())
+        {
+            continue;
         }
 
         let Some(ref item_groups) = ps.item_list else {
@@ -1240,10 +1239,10 @@ fn call_binlog_items(
 
         for group in item_groups {
             // Apply item type filter.
-            if let Some(ref tf) = type_filter {
-                if group.item_type.to_ascii_lowercase() != *tf {
-                    continue;
-                }
+            if let Some(ref tf) = type_filter
+                && group.item_type.to_ascii_lowercase() != *tf
+            {
+                continue;
             }
 
             if !project_header_written {
@@ -1257,10 +1256,10 @@ fn call_binlog_items(
                 let spec = item.item_spec.as_deref().unwrap_or("");
 
                 // Apply spec filter.
-                if let Some(ref sf) = spec_filter {
-                    if !spec.to_ascii_lowercase().contains(sf.as_str()) {
-                        continue;
-                    }
+                if let Some(ref sf) = spec_filter
+                    && !spec.to_ascii_lowercase().contains(sf.as_str())
+                {
+                    continue;
                 }
 
                 if limit.is_some_and(|n| item_count >= n) {
@@ -1444,12 +1443,11 @@ fn call_binlog_task_timeline(
         // Specific project_context_id requested. Find the project file for display.
         let project_indices = index.indices_by_kind(BinaryLogRecordKind::ProjectStarted);
         let proj_file = project_indices.iter().find_map(|&idx| {
-            if let Ok(Some(BinlogEvent::ProjectStarted(ref ps))) = index.get(idx) {
-                if let Some(ref ctx) = ps.fields.build_event_context {
-                    if ctx.project_context_id == ctx_id {
-                        return ps.project_file.clone();
-                    }
-                }
+            if let Ok(Some(BinlogEvent::ProjectStarted(ref ps))) = index.get(idx)
+                && let Some(ref ctx) = ps.fields.build_event_context
+                && ctx.project_context_id == ctx_id
+            {
+                return ps.project_file.clone();
             }
             None
         });
@@ -1466,10 +1464,10 @@ fn call_binlog_task_timeline(
                 continue;
             };
             let proj_file = ps.project_file.as_deref().unwrap_or("<unknown>");
-            if let Some(ref pf) = project_filter {
-                if !proj_file.to_ascii_lowercase().contains(pf.as_str()) {
-                    continue;
-                }
+            if let Some(ref pf) = project_filter
+                && !proj_file.to_ascii_lowercase().contains(pf.as_str())
+            {
+                continue;
             }
             if let Some(ref ctx) = ps.fields.build_event_context {
                 contexts.push((ctx.project_context_id, proj_file.to_owned()));
