@@ -16,16 +16,16 @@ use std::io::{Read, Write};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    context::{read_build_event_context, write_build_event_context, BuildEventContext},
+    context::{BuildEventContext, read_build_event_context, write_build_event_context},
     error::MuninError,
-    fields::{read_build_event_args_fields, write_build_event_args_fields, BuildEventArgsFields},
+    fields::{BuildEventArgsFields, read_build_event_args_fields, write_build_event_args_fields},
     nvl_table::NameValueListTable,
     primitives::{read_7bit_count, read_7bit_int, read_bool},
     readers::{read_dedup_string, read_optional_string, read_string_dictionary},
     string_table::StringTable,
     writers::{
-        write_7bit_int, write_bool, write_dedup_string, write_dotnet_string, write_guid,
-        write_i64_le, write_optional_string, write_string_dictionary, WriteContext,
+        WriteContext, write_7bit_int, write_bool, write_dedup_string, write_dotnet_string,
+        write_guid, write_i64_le, write_optional_string, write_string_dictionary,
     },
 };
 

@@ -9,6 +9,12 @@ updates:
     labels:
       - dependencies
       - github-actions
+    # dtolnay/rust-toolchain's versioned tags are Rust toolchain names
+    # (e.g. @1.85.0 installs Rust 1.85.0), not action versions. Dependabot
+    # treats them as semver action releases and bumps to nonexistent Rust
+    # versions. Pin to @stable + `with: toolchain:` and ignore here.
+    ignore:
+      - dependency-name: "dtolnay/rust-toolchain"
 
   - package-ecosystem: cargo
     directory: "/"

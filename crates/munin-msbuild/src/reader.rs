@@ -18,7 +18,7 @@ use flate2::read::GzDecoder;
 use crate::{
     error::MuninError,
     events::*,
-    header::{open_binlog, BinlogHeader},
+    header::{BinlogHeader, open_binlog},
     nvl_table::{NameValueListTable, NameValuePair},
     primitives::{read_7bit_count, read_7bit_int, read_7bit_length},
     record_kind::BinaryLogRecordKind,

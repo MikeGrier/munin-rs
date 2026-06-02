@@ -4,7 +4,7 @@
 
 use std::{fs::File, io::Cursor, path::PathBuf};
 
-use munin_msbuild::{jsonlog::dump_index, BinlogIndex};
+use munin_msbuild::{BinlogIndex, jsonlog::dump_index};
 
 /// Load a named jsonlog test fixture and return its decoded
 /// [`BinlogIndex`].

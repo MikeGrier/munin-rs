@@ -47,7 +47,7 @@ fn read_all_events_from_real_binlog() {
     );
 
     // BuildFinished should indicate success.
-    if let BinlogEvent::BuildFinished(ref bf) = events.last().unwrap() {
+    if let BinlogEvent::BuildFinished(bf) = events.last().unwrap() {
         assert!(bf.succeeded, "build should have succeeded");
     }
 

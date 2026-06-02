@@ -4,7 +4,7 @@
 
 use std::io::{Cursor, Write};
 
-use flate2::{write::GzEncoder, Compression};
+use flate2::{Compression, write::GzEncoder};
 
 use super::{dump_index, dump_index_pretty};
 use crate::{
@@ -189,7 +189,7 @@ fn case_07_nvl_table_dumped() {
 
 #[test]
 fn case_08_archive_blob_base64() {
-    use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
+    use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
     let mut d = Vec::new();
     header(&mut d);
     let archive_bytes: &[u8] = &[0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01];
@@ -206,7 +206,7 @@ fn case_08_archive_blob_base64() {
 
 #[test]
 fn case_09_unknown_kind_falls_back_to_payload_b64() {
-    use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
+    use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
 
     // Manually construct an IndexEntry-shaped state by parsing a real binlog
     // and then dumping; for the fallback case we use a payload that fails

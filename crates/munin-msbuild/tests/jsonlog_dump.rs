@@ -7,10 +7,10 @@
 
 use std::fs::File;
 
-use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
+use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
 use munin_msbuild::{
-    jsonlog::{dump_index, JsonlogEventBody, JsonlogFile, MUNIN_JSONLOG_VERSION},
     BinlogIndex,
+    jsonlog::{JsonlogEventBody, JsonlogFile, MUNIN_JSONLOG_VERSION, dump_index},
 };
 
 const HELLO_BINLOG: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/hello.binlog");
