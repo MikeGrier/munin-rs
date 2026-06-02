@@ -78,7 +78,9 @@ jobs:
           # with the non-bot identity, ensuring CI triggers on the new commit.
           token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
 
-      - uses: dtolnay/rust-toolchain@1.95.0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.95.0"
 
       - uses: Swatinem/rust-cache@v2
 
