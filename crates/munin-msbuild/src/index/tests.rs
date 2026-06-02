@@ -37,7 +37,7 @@ fn encode_i32_le(value: i32) -> Vec<u8> {
 fn build_test_binlog() -> Vec<u8> {
     use std::io::Write;
 
-    use flate2::{write::GzEncoder, Compression};
+    use flate2::{Compression, write::GzEncoder};
 
     let mut decompressed = Vec::new();
 
@@ -89,7 +89,7 @@ fn build_test_binlog() -> Vec<u8> {
 fn build_binlog_with_context() -> Vec<u8> {
     use std::io::Write;
 
-    use flate2::{write::GzEncoder, Compression};
+    use flate2::{Compression, write::GzEncoder};
 
     let mut decompressed = Vec::new();
 
@@ -124,7 +124,7 @@ fn build_binlog_with_context() -> Vec<u8> {
         p.extend_from_slice(&encode_7bit(0)); // submission_id
         p.extend_from_slice(&encode_7bit(0)); // project_instance_id
         p.extend_from_slice(&encode_7bit(0)); // evaluation_id (version > 1 → version 18 > 1)
-                                              // succeeded = true
+        // succeeded = true
         p.push(1u8);
         p
     };
@@ -341,7 +341,7 @@ fn iter_meta_yields_all() {
 fn empty_binlog_produces_empty_index() {
     use std::io::Write;
 
-    use flate2::{write::GzEncoder, Compression};
+    use flate2::{Compression, write::GzEncoder};
 
     let mut decompressed = Vec::new();
     decompressed.extend_from_slice(&encode_i32_le(18));
@@ -363,7 +363,7 @@ fn empty_binlog_produces_empty_index() {
 fn string_table_populated_during_indexing() {
     use std::io::Write;
 
-    use flate2::{write::GzEncoder, Compression};
+    use flate2::{Compression, write::GzEncoder};
 
     let mut decompressed = Vec::new();
     decompressed.extend_from_slice(&encode_i32_le(18));
@@ -410,7 +410,7 @@ fn string_table_populated_during_indexing() {
 fn unknown_record_kind_skipped() {
     use std::io::Write;
 
-    use flate2::{write::GzEncoder, Compression};
+    use flate2::{Compression, write::GzEncoder};
 
     let mut decompressed = Vec::new();
     decompressed.extend_from_slice(&encode_i32_le(18));
@@ -453,14 +453,14 @@ fn unknown_record_kind_skipped() {
 fn rejects_negative_record_length() {
     use std::io::Write;
 
-    use flate2::{write::GzEncoder, Compression};
+    use flate2::{Compression, write::GzEncoder};
 
     // Build a binlog where the first real record has a negative (-1) length.
     // -1 encoded as a 7-bit i32 = [0xFF, 0xFF, 0xFF, 0xFF, 0x0F]
     let mut decompressed = Vec::new();
     decompressed.extend_from_slice(&encode_i32_le(18)); // version
     decompressed.extend_from_slice(&encode_i32_le(18)); // min_reader_version
-                                                        // BuildStarted kind byte.
+    // BuildStarted kind byte.
     decompressed.extend_from_slice(&encode_7bit(BinaryLogRecordKind::BuildStarted as i32));
     // Negative length: -1
     decompressed.extend_from_slice(&[0xFF, 0xFF, 0xFF, 0xFF, 0x0F]);
@@ -480,7 +480,7 @@ fn rejects_negative_record_length() {
 fn rejects_oversized_record_length() {
     use std::io::Write;
 
-    use flate2::{write::GzEncoder, Compression};
+    use flate2::{Compression, write::GzEncoder};
 
     // MAX_BINLOG_FIELD_LEN + 1 = 0x1000_0001 = 268,435,457; encoded as 7-bit i32:
     // [0x81, 0x80, 0x80, 0x80, 0x01]
@@ -505,7 +505,7 @@ fn rejects_oversized_record_length() {
 fn rejects_negative_nvl_count_in_index() {
     use std::io::Write;
 
-    use flate2::{write::GzEncoder, Compression};
+    use flate2::{Compression, write::GzEncoder};
 
     // A NameValueList record whose count field is -1. The index builder should
     // reject this before allocating the pairs vector.

@@ -32,7 +32,7 @@ pub use context::BuildEventContext;
 pub use error::MuninError;
 pub use field_flags::BuildEventArgsFieldFlags;
 pub use fields::{BuildEventArgsFields, ExtendedDataFields};
-pub use header::{open_binlog, BinlogHeader};
+pub use header::{BinlogHeader, open_binlog};
 pub use index::{BinlogIndex, EventMeta};
 pub use nvl_table::{NameValueListTable, NameValuePair};
 pub use primitives::BinlogDateTime;

@@ -12,17 +12,17 @@
 use std::io::{Cursor, Read, Write};
 
 use crate::{
-    context::{read_build_event_context, BuildEventContext},
+    context::{BuildEventContext, read_build_event_context},
     error::MuninError,
     field_flags::BuildEventArgsFieldFlags,
-    header::{open_binlog, BinlogHeader},
+    header::{BinlogHeader, open_binlog},
     jsonlog::schema::{JsonlogEventBody, JsonlogFile, MUNIN_JSONLOG_VERSION},
     nvl_table::{NameValueListTable, NameValuePair},
     primitives::{read_7bit_count, read_7bit_int},
-    reader::{dispatch_event, ArchiveEntry, BinlogEvent},
+    reader::{ArchiveEntry, BinlogEvent, dispatch_event},
     record_kind::BinaryLogRecordKind,
     string_table::StringTable,
-    writers::{write_7bit_int as w_7bit, WriteContext},
+    writers::{WriteContext, write_7bit_int as w_7bit},
 };
 
 // ---------------------------------------------------------------------------
@@ -243,7 +243,7 @@ impl BinlogIndex {
             .archives
             .into_iter()
             .map(|a| {
-                use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+                use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
                 BASE64
                     .decode(a.data_b64.as_bytes())
                     .map_err(|e| MuninError::InvalidFormat(format!("archive base64: {e}")))
@@ -258,7 +258,7 @@ impl BinlogIndex {
             })?;
             let payload = match ev.body {
                 JsonlogEventBody::PayloadB64(s) => {
-                    use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+                    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
                     BASE64
                         .decode(s.as_bytes())
                         .map_err(|e| MuninError::InvalidFormat(format!("payload base64: {e}")))?
@@ -304,7 +304,7 @@ impl BinlogIndex {
     /// original interleaving of aux and event records is not
     /// preserved by [`crate::jsonlog::JsonlogFile`].
     pub fn write_binlog<W: Write>(&self, writer: W) -> Result<(), MuninError> {
-        use flate2::{write::GzEncoder, Compression};
+        use flate2::{Compression, write::GzEncoder};
 
         let mut gz = GzEncoder::new(writer, Compression::default());
 

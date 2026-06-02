@@ -2,7 +2,7 @@
 
 use std::io::{Cursor, Read, Write};
 
-use flate2::{write::GzEncoder, Compression};
+use flate2::{Compression, write::GzEncoder};
 
 use super::*;
 use crate::error::MuninError;

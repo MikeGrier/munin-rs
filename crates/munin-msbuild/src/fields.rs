@@ -12,12 +12,12 @@ use std::io::{Read, Write};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    context::{read_build_event_context, write_build_event_context, BuildEventContext},
+    context::{BuildEventContext, read_build_event_context, write_build_event_context},
     error::MuninError,
     field_flags::BuildEventArgsFieldFlags,
-    primitives::{read_7bit_count, read_7bit_int, read_datetime, BinlogDateTime},
+    primitives::{BinlogDateTime, read_7bit_count, read_7bit_int, read_datetime},
     string_table::StringTable,
-    writers::{write_7bit_int, write_datetime, write_dedup_string, WriteContext},
+    writers::{WriteContext, write_7bit_int, write_datetime, write_dedup_string},
 };
 
 /// Extended data fields for custom/extended event types.

@@ -738,11 +738,7 @@ fn call_binlog_summary(
     let build_finished_indices = index.indices_by_kind(BinaryLogRecordKind::BuildFinished);
     let build_result = if let Some(&idx) = build_finished_indices.first() {
         if let Ok(Some(BinlogEvent::BuildFinished(ref bf))) = index.get(idx) {
-            if bf.succeeded {
-                "succeeded"
-            } else {
-                "FAILED"
-            }
+            if bf.succeeded { "succeeded" } else { "FAILED" }
         } else {
             "unknown"
         }

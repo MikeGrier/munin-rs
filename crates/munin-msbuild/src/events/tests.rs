@@ -199,11 +199,11 @@ fn project_started_minimal_v18() {
     data.extend(encode_7bit(42)); // project_id
     data.extend(encode_7bit(15)); // target_names dedup
     data.extend(encode_7bit(0)); // tools_version null
-                                 // v18: global_properties always written
+    // v18: global_properties always written
     data.extend(encode_7bit(0)); // null nvl
-                                 // property_list
+    // property_list
     data.extend(encode_7bit(0)); // null nvl
-                                 // item_list (v12+ terminator)
+    // item_list (v12+ terminator)
     data.extend(encode_7bit(0)); // empty item type = end
     let mut cursor = Cursor::new(data);
     let event = read_project_started(&mut cursor, &strings, &nvl, 18).unwrap();
@@ -221,7 +221,7 @@ fn project_started_with_parent_context() {
     let (strings, nvl) = make_tables();
     let mut data = encode_empty_fields();
     data.extend(encode_bool(true)); // has parent context
-                                    // BuildEventContext (6 fields for v18 — matches context.rs)
+    // BuildEventContext (6 fields for v18 — matches context.rs)
     data.extend(encode_7bit(1)); // node_id
     data.extend(encode_7bit(2)); // project_context_id
     data.extend(encode_7bit(3)); // target_id
@@ -326,7 +326,7 @@ fn target_started_v3_no_build_reason() {
     data.extend(encode_bool(false)); // project_file absent
     data.extend(encode_bool(false)); // target_file absent
     data.extend(encode_bool(false)); // parent_target absent
-                                     // No build_reason for version <= 3
+    // No build_reason for version <= 3
     let mut cursor = Cursor::new(data);
     let event = read_target_started(&mut cursor, &strings, 3).unwrap();
     assert_eq!(event.target_name.as_deref(), Some("Target1"));
@@ -373,7 +373,7 @@ fn target_finished_with_outputs() {
     data.extend(encode_7bit(14)); // project_file
     data.extend(encode_7bit(0)); // target_file null
     data.extend(encode_7bit(15)); // target_name
-                                  // task_item_list: 1 item
+    // task_item_list: 1 item
     data.extend(encode_7bit(1)); // count
     data.extend(encode_7bit(21)); // item_spec "item.cs"
     data.extend(encode_7bit(0)); // null metadata dict
@@ -407,12 +407,12 @@ fn target_skipped_v18_with_condition() {
     data.extend(encode_7bit(17)); // target_file
     data.extend(encode_7bit(15)); // target_name
     data.extend(encode_7bit(0)); // parent_target null
-                                 // v13+ fields
+    // v13+ fields
     data.extend(encode_7bit(19)); // condition "MyProperty"
     data.extend(encode_7bit(20)); // evaluated_condition "MyValue"
     data.extend(encode_bool(false)); // originally_succeeded
     data.extend(encode_7bit(5)); // build_reason
-                                 // v14+ fields
+    // v14+ fields
     data.extend(encode_7bit(1)); // skip_reason
     data.extend(encode_bool(false)); // no original context
     let mut cursor = Cursor::new(data);
@@ -433,15 +433,15 @@ fn target_skipped_v14_with_original_context() {
     data.extend(encode_7bit(0)); // target_file
     data.extend(encode_7bit(15)); // target_name
     data.extend(encode_7bit(0)); // parent_target
-                                 // v13+ fields
+    // v13+ fields
     data.extend(encode_7bit(0)); // condition null
     data.extend(encode_7bit(0)); // evaluated_condition null
     data.extend(encode_bool(true)); // originally_succeeded
     data.extend(encode_7bit(0)); // build_reason
-                                 // v14+ fields
+    // v14+ fields
     data.extend(encode_7bit(2)); // skip_reason
     data.extend(encode_bool(true)); // has original context
-                                    // BuildEventContext
+    // BuildEventContext
     data.extend(encode_7bit(10)); // node_id
     data.extend(encode_7bit(20)); // project_context_id
     data.extend(encode_7bit(30)); // target_id
@@ -466,9 +466,9 @@ fn target_skipped_v12_no_skip_reason_field() {
     data.extend(encode_7bit(15)); // target_file
     data.extend(encode_7bit(0)); // target_name
     data.extend(encode_7bit(0)); // parent_target
-                                 // No v13+ fields
+    // No v13+ fields
     data.extend(encode_7bit(0)); // build_reason
-                                 // No v14+ fields
+    // No v14+ fields
     let mut cursor = Cursor::new(data);
     let event = read_target_skipped(&mut cursor, &strings, 12).unwrap();
     assert_eq!(event.skip_reason, 0);
@@ -489,7 +489,7 @@ fn task_started_minimal() {
     data.extend(encode_7bit(16)); // task_name "MyTask"
     data.extend(encode_7bit(14)); // project_file
     data.extend(encode_7bit(17)); // task_file "task.dll"
-                                  // v20+: task_assembly_location
+    // v20+: task_assembly_location
     data.extend(encode_7bit(17)); // task_assembly_location
     let mut cursor = Cursor::new(data);
     let event = read_task_started(&mut cursor, &strings, 20).unwrap();
@@ -606,7 +606,7 @@ fn task_parameter_with_items() {
     let mut data = encode_importance_fields(0, 21);
     data.extend(encode_7bit(2)); // kind
     data.extend(encode_7bit(0)); // item_type null
-                                 // items: 1 item
+    // items: 1 item
     data.extend(encode_7bit(1)); // count
     data.extend(encode_7bit(21)); // item_spec "item.cs"
     data.extend(encode_7bit(0)); // metadata null
@@ -626,7 +626,7 @@ fn task_parameter_v20_no_names() {
     data.extend(encode_7bit(0)); // kind
     data.extend(encode_7bit(0)); // item_type null
     data.extend(encode_7bit(0)); // items count=0
-                                 // v20: no parameter_name/property_name
+    // v20: no parameter_name/property_name
     let mut cursor = Cursor::new(data);
     let event = read_task_parameter(&mut cursor, &strings, &nvl, 20).unwrap();
     assert!(event.parameter_name.is_none());
@@ -796,13 +796,13 @@ fn project_evaluation_finished_v18_no_profile() {
     let (strings, nvl) = make_tables();
     let mut data = encode_empty_fields();
     data.extend(encode_7bit(14)); // project_file
-                                  // v12+: global_properties always in v18
+    // v12+: global_properties always in v18
     data.extend(encode_7bit(0)); // null
-                                 // property_list
+    // property_list
     data.extend(encode_7bit(0)); // null
-                                 // item_list terminator
+    // item_list terminator
     data.extend(encode_7bit(0)); // empty type = end
-                                 // v5+: has_profile_data
+    // v5+: has_profile_data
     data.extend(encode_bool(false));
     let mut cursor = Cursor::new(data);
     let event = read_project_evaluation_finished(&mut cursor, &strings, &nvl, 18).unwrap();
@@ -819,7 +819,7 @@ fn project_evaluation_finished_v18_with_properties() {
     let (strings, nvl) = make_tables();
     let mut data = encode_empty_fields();
     data.extend(encode_7bit(14)); // project_file
-                                  // global_properties = NVL 10
+    // global_properties = NVL 10
     data.extend(encode_7bit(10));
     // property_list = NVL 10
     data.extend(encode_7bit(10));
@@ -857,7 +857,7 @@ fn project_evaluation_finished_with_profile_data() {
     data.extend(encode_7bit(3)); // evaluation_pass
     data.extend(encode_bool(true)); // has line
     data.extend(encode_7bit(42)); // line
-                                  // v6+: id and parent_id
+    // v6+: id and parent_id
     data.extend(encode_i64_le(100)); // id
     data.extend(encode_bool(true)); // has parent_id
     data.extend(encode_i64_le(50)); // parent_id
@@ -890,7 +890,7 @@ fn project_evaluation_finished_v4_no_profile() {
     let (strings, nvl) = make_tables();
     let mut data = encode_empty_fields();
     data.extend(encode_7bit(0)); // project_file null
-                                 // No v12+ properties, no v5+ profile
+    // No v12+ properties, no v5+ profile
     let mut cursor = Cursor::new(data);
     let event = read_project_evaluation_finished(&mut cursor, &strings, &nvl, 4).unwrap();
     assert!(event.global_properties.is_none());
@@ -1184,7 +1184,7 @@ fn environment_variable_read_v21_no_location() {
     let (strings, _) = make_tables();
     let mut data = encode_importance_fields(0, 21);
     data.extend(encode_7bit(19)); // environment_variable_name "MyProperty"
-                                  // No line/column/fileName for version < 22
+    // No line/column/fileName for version < 22
     let mut cursor = Cursor::new(data);
     let event = read_environment_variable_read(&mut cursor, &strings, 21).unwrap();
     assert_eq!(
@@ -1585,11 +1585,11 @@ fn build_submission_started_all_fields() {
     let (strings, nvl) = make_tables();
     let mut data = encode_empty_fields();
     data.extend(encode_7bit(10)); // global_properties NVL index 10
-                                  // entry_projects_full_path: 2 strings
+    // entry_projects_full_path: 2 strings
     data.extend(encode_7bit(2));
     data.extend(encode_7bit(14)); // "project.csproj"
     data.extend(encode_7bit(25)); // "proj.csproj"
-                                  // target_names: 1 string
+    // target_names: 1 string
     data.extend(encode_7bit(1));
     data.extend(encode_7bit(18)); // "Build"
     data.extend(encode_7bit(7)); // flags
@@ -1671,7 +1671,7 @@ fn build_submission_started_multiple_targets() {
     let mut data = encode_empty_fields();
     data.extend(encode_7bit(0)); // global_properties null
     data.extend(encode_7bit(0)); // entry_projects empty
-                                 // target_names: 3 strings
+    // target_names: 3 strings
     data.extend(encode_7bit(3));
     data.extend(encode_7bit(18)); // "Build"
     data.extend(encode_7bit(15)); // "MyTarget"

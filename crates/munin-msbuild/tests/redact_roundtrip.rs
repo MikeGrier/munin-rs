@@ -6,7 +6,7 @@
 
 use std::{fs::File, io::Cursor};
 
-use munin_msbuild::{jsonlog::dump_index, redact::Redactor, BinlogIndex};
+use munin_msbuild::{BinlogIndex, jsonlog::dump_index, redact::Redactor};
 
 const HELLO_BINLOG: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/hello.binlog");
 

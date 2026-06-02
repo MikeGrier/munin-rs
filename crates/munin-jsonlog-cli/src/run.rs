@@ -8,7 +8,7 @@ use std::{
     path::Path,
 };
 
-use munin_msbuild::{jsonlog, BinlogIndex};
+use munin_msbuild::{BinlogIndex, jsonlog};
 
 use crate::{
     cli::{Cli, Command, DumpArgs, PackArgs, RedactArgs},

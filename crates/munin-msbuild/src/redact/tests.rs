@@ -269,7 +269,7 @@ fn autodetect_username_replaces_username_value_in_strings() {
     // BuildStarted event introduced. Add an entry by going through a
     // round-trip with a string that references the username.
     idx.strings_mut().entries_mut(); // ensure mutable borrow path compiles
-                                     // Push a string by reaching into the table.
+    // Push a string by reaching into the table.
     let s_idx = idx.strings_mut().add("hello alice and Alice".to_string());
     Redactor::new().with_autodetect_username().apply(&mut idx);
     assert_eq!(

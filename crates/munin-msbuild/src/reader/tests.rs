@@ -2,7 +2,7 @@
 
 use std::io::{Cursor, Write};
 
-use flate2::{write::GzEncoder, Compression};
+use flate2::{Compression, write::GzEncoder};
 
 use super::*;
 use crate::record_kind::BinaryLogRecordKind;
@@ -311,7 +311,7 @@ fn unknown_record_kind_skipped() {
     body.extend(encode_7bit(99)); // kind
     body.extend(encode_7bit(5)); // length = 5
     body.extend(&[0xDE, 0xAD, 0xBE, 0xEF, 0x42]); // payload
-                                                  // Real event follows
+    // Real event follows
     body.extend(encode_record(
         BinaryLogRecordKind::BuildFinished,
         &build_finished_payload(true),
@@ -760,7 +760,7 @@ fn version_22_header() {
 
 /// Create a zip archive in memory with the given (path, contents) entries.
 fn make_zip(entries: &[(&str, &str)]) -> Vec<u8> {
-    use zip::{write::SimpleFileOptions, ZipWriter};
+    use zip::{ZipWriter, write::SimpleFileOptions};
 
     let buf = Vec::new();
     let mut writer = ZipWriter::new(Cursor::new(buf));

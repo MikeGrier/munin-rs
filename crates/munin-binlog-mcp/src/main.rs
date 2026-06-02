@@ -194,7 +194,7 @@ fn dispatch(method: &str, params: Option<Value>, sessions: &mut tools::SessionMa
                             code: code::INVALID_PARAMS,
                             message: "tools/call requires params".into(),
                         },
-                    }
+                    };
                 }
             };
 
