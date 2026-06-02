@@ -93,12 +93,12 @@ jobs:
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
   msrv:
-    name: MSRV check (1.85)
+    name: MSRV check (1.88)
     runs-on: ubuntu-latest
     # Override the workspace `rust-toolchain.toml` pin (1.95) so cargo runs
     # under the declared MSRV instead of the developer-pinned toolchain.
     env:
-      RUSTUP_TOOLCHAIN: "1.85.0"
+      RUSTUP_TOOLCHAIN: "1.88.0"
     steps:
       - uses: actions/checkout@v6
       # Pin to the exact MSRV declared in [workspace.package].rust-version
@@ -106,7 +106,7 @@ jobs:
       # silently raising the floor for downstream consumers.
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: "1.85.0"
+          toolchain: "1.88.0"
       - uses: Swatinem/rust-cache@v2
       - name: cargo check (MSRV)
         run: cargo check --workspace --all-targets --locked
