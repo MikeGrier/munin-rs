@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.1](https://github.com/MikeGrier/munin-rs/compare/v0.3.0...v0.3.1) (2026-06-02)
+
+
+### Bug Fixes
+
+* trigger release-please patch release ([0503ae1](https://github.com/MikeGrier/munin-rs/commit/0503ae1067433c23dac53ec3415603fffaea3f26))
+* trigger release-please patch release ([128c919](https://github.com/MikeGrier/munin-rs/commit/128c919cc36cc526f827564bb3fc4b205eda51c2))
+
 ## [0.3.0](https://github.com/MikeGrier/munin-rs/compare/v0.2.0...v0.3.0) (2026-06-01)
 
 
