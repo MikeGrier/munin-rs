@@ -227,3 +227,58 @@ fn missing_globals_are_empty_not_panicking() {
     assert_eq!(projects[0].configuration(), None);
     assert_eq!(projects[0].platform(), None);
 }
+
+#[test]
+fn to_global_properties_marks_all_as_command_line() {
+    use crate::schema::PropertySource;
+
+    let index = build_index(vec![project_started_event(
+        1,
+        r"C:\src\X.vcxproj",
+        &[
+            ("Configuration", "Debug"),
+            ("Platform", "x64"),
+            ("CustomProp", "value"),
+        ],
+        &[],
+    )]);
+
+    let projects = walk_projects(&index).expect("walk");
+    let globals = projects[0].to_global_properties();
+    assert_eq!(globals.len(), 3);
+    for g in &globals {
+        assert_eq!(g.source, PropertySource::CommandLine);
+    }
+    assert_eq!(globals[0].name, "Configuration");
+    assert_eq!(globals[0].value, "Debug");
+    assert_eq!(globals[2].name, "CustomProp");
+    assert_eq!(globals[2].value, "value");
+}
+
+#[test]
+fn to_global_properties_preserves_msbuild_order() {
+    let index = build_index(vec![project_started_event(
+        1,
+        r"C:\src\X.vcxproj",
+        &[("Z", "1"), ("A", "2"), ("M", "3")],
+        &[],
+    )]);
+
+    let projects = walk_projects(&index).expect("walk");
+    let globals = projects[0].to_global_properties();
+    let names: Vec<&str> = globals.iter().map(|g| g.name.as_str()).collect();
+    assert_eq!(names, vec!["Z", "A", "M"]);
+}
+
+#[test]
+fn to_global_properties_is_empty_when_no_globals() {
+    let index = build_index(vec![project_started_event(
+        1,
+        r"C:\src\X.vcxproj",
+        &[],
+        &[("Configuration", "Debug")],
+    )]);
+
+    let projects = walk_projects(&index).expect("walk");
+    assert!(projects[0].to_global_properties().is_empty());
+}

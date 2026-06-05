@@ -81,7 +81,7 @@ output captured in the binlog.
   events; identify project-start / project-finish bracketing; collect
   per-project state (project file path, platform, configuration,
   global properties from the project-started payload).
-- [ ] **CPP-2.2.** Surface command-line / global properties: extract
+- [x] **CPP-2.2.** Surface command-line / global properties: extract
   `/p:` properties set on the MSBuild invocation versus per-project
   properties. Record both under `global_properties` with a `source`
   discriminator (`command_line` | `project`).

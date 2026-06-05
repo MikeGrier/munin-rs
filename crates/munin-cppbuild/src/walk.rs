@@ -15,6 +15,8 @@ use munin_msbuild::{
     BinaryLogRecordKind, BinlogEvent, BinlogIndex, MuninError, events::ProjectStartedEvent,
 };
 
+use crate::schema::{GlobalProperty, PropertySource};
+
 /// Per-project-invocation metadata extracted from a binlog.
 ///
 /// Each `ProjectStarted` event in the binlog produces one
@@ -59,6 +61,21 @@ impl ProjectInvocation {
     /// broader property list.
     pub fn platform(&self) -> Option<&str> {
         self.lookup("Platform")
+    }
+
+    /// Convert `global_properties` to schema [`GlobalProperty`]
+    /// entries. Every entry is tagged with
+    /// [`PropertySource::CommandLine`]; see DESIGN-NOTES.md
+    /// §D-CPP-PROPSRC1 for why `Project` is not yet emitted.
+    pub fn to_global_properties(&self) -> Vec<GlobalProperty> {
+        self.global_properties
+            .iter()
+            .map(|(name, value)| GlobalProperty {
+                name: name.clone(),
+                value: value.clone(),
+                source: PropertySource::CommandLine,
+            })
+            .collect()
     }
 
     fn lookup(&self, name: &str) -> Option<&str> {

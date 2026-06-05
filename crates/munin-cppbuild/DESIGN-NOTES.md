@@ -29,6 +29,7 @@ milestones complete.
 | D-CPPSCHEMA-1 | JSON document schema for a single binlog's C++ build analysis | §D-CPPSCHEMA-1 |
 | D-CPP-PATHROOT-1 | Multi-root path canonicalization rules | `src/path_root.rs` |
 | D-CPP-ALIAS-1 | Alias-table construction algorithm | `src/alias.rs` |
+| D-CPP-PROPSRC1 | All global properties are emitted with `source = command_line` | §D-CPP-PROPSRC1 |
 
 Decisions are added here as milestones land:
 
@@ -37,6 +38,8 @@ Decisions are added here as milestones land:
   (CPP-1.3). _added in `src/path_root.rs`._
 - **D-CPP-ALIAS-1** — Alias-table construction algorithm (CPP-1.4).
   _added in `src/alias.rs`._
+- **D-CPP-PROPSRC1** — Property source attribution rule (CPP-2.2).
+  _added._
 - **D-CPP-SHOWINC-1** — `/showIncludes` parsing and directive-text
   reconstruction heuristic (CPP-3.x).
 - **D-CPP-LINK1** — `link /VERBOSE` parsing rules derived from the
@@ -203,3 +206,46 @@ Every collection in the document has a defined order:
 - `alias_table` and `includes` maps: alphabetical by key on emit
   (rationale: maps have no source order; alphabetical is the only
   reproducible choice).
+
+---
+
+### D-CPP-PROPSRC1: Property source attribution
+
+Implementation lives in `src/walk.rs` (`ProjectInvocation::to_global_properties`).
+
+**Decision.** Every entry in
+[`schema::Project::global_properties`](../src/schema.rs) is emitted
+with `source = command_line`. The `project` variant of
+[`schema::PropertySource`](../src/schema.rs) is **reserved** for a
+future signal but is never produced by v1.
+
+**Constraint.** The MSBuild binlog records a `global_properties`
+dictionary on `ProjectStarted`, but does not record which entries
+originated from:
+
+- the MSBuild process command line (`/p:Foo=Bar`),
+- a parent project that passed them via the `<MSBuild>` task's
+  `Properties` parameter,
+- an `IBuildEngine` API caller,
+- or an inherited environment variable.
+
+All of these arrive at the child project as indistinguishable global
+properties. There is no field, flag, or correlated event that
+distinguishes them.
+
+**Rationale.** Marking every entry `command_line` for v1 keeps the
+schema honest (the value really did override anything in the project
+file) without making up provenance. If a future MSBuild format
+revision adds an attribution signal, or we add separate event
+correlation (e.g. inspecting `ResponseFileUsed` or environment
+records), individual entries can be re-tagged `project` without a
+schema break.
+
+**Scope.** Properties that appear only in
+`ProjectStartedEvent::property_list` but **not** in
+`ProjectStartedEvent::global_properties` are not emitted as
+`GlobalProperty` entries at all — `property_list` typically contains
+hundreds of evaluated defaults that would drown the output. Their
+values remain available internally for fallback lookups (e.g.
+deriving `Configuration` / `Platform` when those weren't passed via
+`/p:`).
