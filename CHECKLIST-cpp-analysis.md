@@ -124,7 +124,7 @@ output captured in the binlog.
   D-CPP-SHOWINC. The `includes` map uses resolved-path keys at this
   layer; raising directive-text keys is a follow-on if heuristic is
   reliable.
-- [ ] **CPP-3.5.** Integration test against a tiny synthetic project
+- [x] **CPP-3.5.** Integration test against a tiny synthetic project
   with header chain `a.cpp → a.h → b.h → c.h` and a duplicate
   include; verify tree, flat list, aliases.
 

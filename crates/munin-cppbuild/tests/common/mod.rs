@@ -191,3 +191,173 @@ pub fn synthetic_vcxproj_binlog() -> Vec<u8> {
         .expect("fixture binlog should write");
     bytes
 }
+
+// ── CL task fixture builders (CPP-3.5) ────────────────────────────
+
+/// Build a `TaskStarted` event for the named task under the given
+/// project context.
+fn task_started_event(task_name: &str, project_context_id: i32, task_id: i32) -> JsonlogEvent {
+    let body = serde_json::json!({
+        "fields": {
+            "flags": BuildEventArgsFieldFlags::BUILD_EVENT_CONTEXT.bits() as i32,
+            "build_event_context": {
+                "node_id": 1,
+                "project_context_id": project_context_id,
+                "target_id": 1,
+                "task_id": task_id,
+                "submission_id": 0,
+                "project_instance_id": project_context_id,
+                "evaluation_id": -1,
+            },
+            "thread_id": 0, "importance": 0,
+            "line_number": 0, "column_number": 0,
+            "end_line_number": 0, "end_column_number": 0,
+        },
+        "task_name": task_name,
+        "project_file": FIXTURE_PROJECT_PATH,
+        "task_file": null,
+        "task_assembly_location": null,
+    });
+    JsonlogEvent {
+        kind: "TaskStarted".to_string(),
+        byte_offset: 0,
+        body: JsonlogEventBody::Decoded(body),
+    }
+}
+
+/// Build a `TaskFinished` event for the named task under the given
+/// project context.
+fn task_finished_event(task_name: &str, project_context_id: i32, task_id: i32) -> JsonlogEvent {
+    let body = serde_json::json!({
+        "fields": {
+            "flags": BuildEventArgsFieldFlags::BUILD_EVENT_CONTEXT.bits() as i32,
+            "build_event_context": {
+                "node_id": 1,
+                "project_context_id": project_context_id,
+                "target_id": 1,
+                "task_id": task_id,
+                "submission_id": 0,
+                "project_instance_id": project_context_id,
+                "evaluation_id": -1,
+            },
+            "thread_id": 0, "importance": 0,
+            "line_number": 0, "column_number": 0,
+            "end_line_number": 0, "end_column_number": 0,
+        },
+        "succeeded": true,
+        "task_name": task_name,
+        "project_file": FIXTURE_PROJECT_PATH,
+        "task_file": null,
+    });
+    JsonlogEvent {
+        kind: "TaskFinished".to_string(),
+        byte_offset: 0,
+        body: JsonlogEventBody::Decoded(body),
+    }
+}
+
+/// Build a `TaskCommandLine` event for the active CL task.
+fn task_command_line_event(command: &str, project_context_id: i32, task_id: i32) -> JsonlogEvent {
+    let body = serde_json::json!({
+        "fields": {
+            "flags": (BuildEventArgsFieldFlags::BUILD_EVENT_CONTEXT.bits()
+                | BuildEventArgsFieldFlags::MESSAGE.bits()) as i32,
+            "message": command,
+            "build_event_context": {
+                "node_id": 1,
+                "project_context_id": project_context_id,
+                "target_id": 1,
+                "task_id": task_id,
+                "submission_id": 0,
+                "project_instance_id": project_context_id,
+                "evaluation_id": -1,
+            },
+            "thread_id": 0, "importance": 1,
+            "line_number": 0, "column_number": 0,
+            "end_line_number": 0, "end_column_number": 0,
+        },
+        "command_line": command,
+        "task_name": "CL",
+    });
+    JsonlogEvent {
+        kind: "TaskCommandLine".to_string(),
+        byte_offset: 0,
+        body: JsonlogEventBody::Decoded(body),
+    }
+}
+
+/// Build a `Message` event with the given text under the active
+/// project/task context.
+fn message_event(text: &str, project_context_id: i32, task_id: i32) -> JsonlogEvent {
+    let body = serde_json::json!({
+        "fields": {
+            "flags": (BuildEventArgsFieldFlags::BUILD_EVENT_CONTEXT.bits()
+                | BuildEventArgsFieldFlags::MESSAGE.bits()) as i32,
+            "message": text,
+            "build_event_context": {
+                "node_id": 1,
+                "project_context_id": project_context_id,
+                "target_id": 1,
+                "task_id": task_id,
+                "submission_id": 0,
+                "project_instance_id": project_context_id,
+                "evaluation_id": -1,
+            },
+            "thread_id": 0, "importance": 1,
+            "line_number": 0, "column_number": 0,
+            "end_line_number": 0, "end_column_number": 0,
+        },
+    });
+    JsonlogEvent {
+        kind: "Message".to_string(),
+        byte_offset: 0,
+        body: JsonlogEventBody::Decoded(body),
+    }
+}
+
+/// Construct a synthetic binlog that brackets a single `.vcxproj`
+/// invocation containing a single CL task. The task records the
+/// supplied `command_line` and `messages` (one `Message` event per
+/// entry, in order).
+///
+/// Used by CPP-3.5 integration tests.
+pub fn synthetic_cl_task_binlog(command_line: &str, messages: &[&str]) -> Vec<u8> {
+    let project_id: i32 = 10;
+    let task_id: i32 = 5;
+
+    let mut events = vec![
+        build_started_event(),
+        project_started_event(
+            project_id,
+            FIXTURE_PROJECT_PATH,
+            &[("Configuration", "Debug"), ("Platform", "x64")],
+        ),
+        task_started_event("CL", project_id, task_id),
+        task_command_line_event(command_line, project_id, task_id),
+    ];
+    for msg in messages {
+        events.push(message_event(msg, project_id, task_id));
+    }
+    events.push(task_finished_event("CL", project_id, task_id));
+    events.push(project_finished_event(project_id, FIXTURE_PROJECT_PATH));
+    events.push(build_finished_event());
+
+    let file = JsonlogFile {
+        munin_jsonlog_version: MUNIN_JSONLOG_VERSION,
+        header: JsonlogHeader {
+            file_format_version: 18,
+            min_reader_version: 18,
+        },
+        strings: Vec::new(),
+        name_value_lists: Vec::new(),
+        archives: Vec::new(),
+        events,
+    };
+
+    let index = BinlogIndex::from_jsonlog(file).expect("fixture jsonlog should parse");
+    let mut bytes = Vec::new();
+    index
+        .write_binlog(&mut bytes)
+        .expect("fixture binlog should write");
+    bytes
+}
