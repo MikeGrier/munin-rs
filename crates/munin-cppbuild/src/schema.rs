@@ -114,6 +114,10 @@ pub struct IncludeNode {
     /// Alias of the resolved header — duplicated from the parent's
     /// map key for self-containment.
     pub file: String,
+    /// Children keyed by **alias of the resolved header path**
+    /// (D-CPP-SHOWINC-1 CPP-3.4). Not keyed by directive text
+    /// (`"foo.h"` / `<bar>`) — that mapping requires re-reading the
+    /// source file and is not in scope for v1.
     pub children: BTreeMap<String, IncludeNode>,
 }
 

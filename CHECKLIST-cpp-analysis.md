@@ -115,7 +115,7 @@ output captured in the binlog.
   `included_files` list in first-encounter order. Detect non-English
   output and surface a typed error. Unit tests for nested includes,
   duplicate includes, error lines interleaved.
-- [ ] **CPP-3.4.** Join: map the `#include "..."` /
+- [x] **CPP-3.4.** Join: map the `#include "..."` /
   `#include <...>` directive text to its resolved file. The
   directive-text → resolved-file mapping is not in `/showIncludes`
   output directly; derive from indent transitions (each top-level

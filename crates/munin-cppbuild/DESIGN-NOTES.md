@@ -409,3 +409,44 @@ indicates the message stream was reordered or truncated upstream.
   rooted, or de-cased. That is the job of `path_root` and `alias`.
 - **No deduplication inside the tree.** Duplicate occurrences are
   preserved structurally; only the flat list deduplicates.
+
+
+**Directive-text → resolved-file mapping (CPP-3.4).** The
+`#include "..."` or `#include <...>` directive text that appears in
+the original source file is **not** present in `/showIncludes`
+output. `cl.exe` only records the resolved absolute path of each
+header it consumed. Reconstructing the directive text requires
+re-reading the source file and aligning its top-level `#include`
+directives with the depth-1 nodes of the include tree in order.
+
+In the v1 schema (D-CPPSCHEMA-1), the per-TU `includes` map is
+keyed by the **alias of the resolved header path**, not by directive
+text. This is an explicit decision; raising directive-text keys is a
+candidate follow-on if the alignment heuristic proves reliable.
+
+**Heuristic (for future implementation).**
+
+1. Tokenize the source file's preprocessor directives.
+2. Collect top-level `#include` directives in source-text order,
+   ignoring those guarded out by `#if 0`, `#if false`, or trivially-
+   false `#if` arms.
+3. Pair the i-th surviving directive with the i-th depth-1 node of
+   the include tree.
+
+**Known limits.**
+
+- `#include` directives reached via macro expansion
+  (`#include FOO_HEADER`) cannot be aligned by this heuristic — the
+  source-text directive doesn't name the file.
+- `#include` directives inside non-trivial `#if` arms whose
+  truthiness depends on macros defined at compile time are
+  effectively conditional; aligning them requires running the
+  preprocessor.
+- Headers included multiple times at depth 1 (rare with include
+  guards) align ambiguously.
+- Headers excluded by include guards on a re-include path don't
+  re-appear in `/showIncludes`, so the i-th alignment can drift.
+
+These limits make directive-text alignment a best-effort enrichment,
+not a primary key. The schema's resolved-path-aliased keys remain
+authoritative.
