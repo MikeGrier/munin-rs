@@ -146,7 +146,7 @@ output captured in the binlog.
 - [x] **CPP-4.4.** Wire link analysis into project-invocation
   emitter; aliases applied via the per-project alias table built
   after both CL and Link data are collected.
-- [ ] **CPP-4.5.** Integration test against a synthetic C++ project
+- [x] **CPP-4.5.** Integration test against a synthetic C++ project
   that links a static lib and an exe with verbose output; verify
   inputs / dropped / aliases.
 
