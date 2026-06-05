@@ -108,7 +108,7 @@ output captured in the binlog.
   (both `/Dfoo` and `/Dfoo=bar`), source file. Preserve unknown
   switches verbatim under `other_switches[]`. Unit tests for response
   files, quoted paths, `/D` edge cases.
-- [ ] **CPP-3.3.** `/showIncludes` parser in `cl_showincludes.rs`:
+- [x] **CPP-3.3.** `/showIncludes` parser in `cl_showincludes.rs`:
   parse `Note: including file:` lines (English locale per D-CPP-5).
   Indent depth = include depth. Build an ordered tree of
   `IncludeNode { resolved_path, children[] }`. Also produce the flat

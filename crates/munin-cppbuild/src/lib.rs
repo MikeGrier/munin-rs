@@ -27,6 +27,7 @@
 
 pub mod alias;
 pub mod cl_cmdline;
+pub mod cl_showincludes;
 pub mod emit;
 pub mod path_root;
 pub mod schema;
@@ -34,6 +35,9 @@ pub mod walk;
 
 pub use alias::AliasTable;
 pub use cl_cmdline::{ClCommandLine, parse as parse_cl_command_line};
+pub use cl_showincludes::{
+    LocaleNotSupportedError, RawIncludeNode, ShowIncludes, parse as parse_cl_show_includes,
+};
 pub use emit::project_from_invocation;
 pub use path_root::to_rooted;
 pub use schema::{

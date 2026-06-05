@@ -32,6 +32,7 @@ milestones complete.
 | D-CPP-PROPSRC1 | All global properties are emitted with `source = command_line` | §D-CPP-PROPSRC1 |
 | D-CPP-FIXTURE1 | Integration fixtures are synthesized programmatically, not checked in as binary `.binlog` files | §D-CPP-FIXTURE1 |
 | D-CPP-CLCMDLINE1 | `cl.exe` command-line tokenizer scope and limits | §D-CPP-CLCMDLINE1 |
+| D-CPP-SHOWINC-1 | `/showIncludes` parsing rules and non-English-locale detection | §D-CPP-SHOWINC-1 |
 
 Decisions are added here as milestones land:
 
@@ -46,8 +47,8 @@ Decisions are added here as milestones land:
   (CPP-2.4). _added._
 - **D-CPP-CLCMDLINE1** — `cl.exe` command-line tokenizer scope and
   limits (CPP-3.2). _added._
-- **D-CPP-SHOWINC-1** — `/showIncludes` parsing and directive-text
-  reconstruction heuristic (CPP-3.x).
+- **D-CPP-SHOWINC-1** — `/showIncludes` parsing rules and
+  non-English-locale detection (CPP-3.3). _added._
 - **D-CPP-LINK1** — `link /VERBOSE` parsing rules derived from the
   spike against the real binlog corpus (CPP-4.1).
 
@@ -342,3 +343,69 @@ MSBuild-emitted CL command lines do not exercise.
 defines inside a response file will appear to have no include search
 paths in the schema. The presence of `@…` tokens in `other_switches`
 is the signal that this has happened.
+
+---
+
+### D-CPP-SHOWINC-1: `/showIncludes` parsing rules
+
+Implementation lives in `src/cl_showincludes.rs` (`parse()` →
+`ShowIncludes`). Directive-text reconstruction is addressed in a
+follow-on section once CPP-3.4 lands.
+
+**Line format.** The English `cl.exe` emits one line per resolved
+header:
+
+```
+Note: including file: <N spaces><resolved path>
+```
+
+The literal prefix is exactly `Note: including file:` (case-sensitive,
+ASCII). Following the colon, `cl.exe` emits **one or more** spaces;
+the count of spaces is the include **depth**:
+
+- 1 space  → depth 1 (header included directly from the source)
+- 2 spaces → depth 2 (header included by a depth-1 header)
+- N spaces → depth N
+
+The resolved path is the rest of the line, taken verbatim. No
+normalization or stripping is performed at this layer.
+
+**Tree construction.** A depth-N line is the next child of the
+current depth-(N-1) parent. The parser maintains a path of ancestor
+indices keyed by depth and pops/pushes as depth changes. Sibling
+order within each node matches the order of emission.
+
+**Flat dedup list.** [`ShowIncludes::included_files`] is the
+depth-first first-encounter walk of the tree with duplicates
+removed. Duplicate occurrences remain in the tree (so the structural
+record is exact), but each path appears at most once in the flat
+list.
+
+**Diagnostics and non-include messages.** Any message that does not
+match the exact prefix is silently ignored. `cl.exe` interleaves
+warnings, errors, file-name banners, and progress text with the
+include notes; the parser treats all of these as out-of-band.
+
+**Non-English locale detection.** The parser scans the input for a
+small allowlist of known localized equivalents (French, German,
+Spanish, Italian, Simplified Chinese, Japanese) and returns
+[`LocaleNotSupportedError`] if any match. The list is **not
+exhaustive**; an unrecognized locale will produce an empty tree with
+no error. Callers that need higher-confidence detection can check
+whether `included_files` is empty on a TU known to have includes.
+
+**Malformed input.** If a line's depth exceeds the current ancestor
+chain depth by more than 1 (a "skipped level"), the line is dropped
+and [`ShowIncludes::malformed_message_count`] is incremented. Well-
+formed `cl.exe` output never triggers this; a non-zero count
+indicates the message stream was reordered or truncated upstream.
+
+**Explicit non-goals (v1).**
+
+- **No directive-text reconstruction.** Mapping a resolved-path node
+  back to its source `#include "..."` / `#include <...>` directive
+  is the job of CPP-3.4 and a follow-on section in this design note.
+- **No path normalization.** Resolved paths are not canonicalized,
+  rooted, or de-cased. That is the job of `path_root` and `alias`.
+- **No deduplication inside the tree.** Duplicate occurrences are
+  preserved structurally; only the flat list deduplicates.
