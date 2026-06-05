@@ -103,7 +103,7 @@ output captured in the binlog.
 - [x] **CPP-3.1.** CL task identification: in `binlog_walk.rs`,
   recognize `CL` task invocations under a C++ project; capture the
   command line and the per-TU message stream.
-- [ ] **CPP-3.2.** Command-line tokenizer in `cl_cmdline.rs`: split
+- [x] **CPP-3.2.** Command-line tokenizer in `cl_cmdline.rs`: split
   the `cl.exe` command line; extract `/I` include paths, `/D` defines
   (both `/Dfoo` and `/Dfoo=bar`), source file. Preserve unknown
   switches verbatim under `other_switches[]`. Unit tests for response

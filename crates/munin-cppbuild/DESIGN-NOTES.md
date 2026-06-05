@@ -31,6 +31,7 @@ milestones complete.
 | D-CPP-ALIAS-1 | Alias-table construction algorithm | `src/alias.rs` |
 | D-CPP-PROPSRC1 | All global properties are emitted with `source = command_line` | §D-CPP-PROPSRC1 |
 | D-CPP-FIXTURE1 | Integration fixtures are synthesized programmatically, not checked in as binary `.binlog` files | §D-CPP-FIXTURE1 |
+| D-CPP-CLCMDLINE1 | `cl.exe` command-line tokenizer scope and limits | §D-CPP-CLCMDLINE1 |
 
 Decisions are added here as milestones land:
 
@@ -43,6 +44,8 @@ Decisions are added here as milestones land:
   _added._
 - **D-CPP-FIXTURE1** — Synthetic in-memory integration fixtures
   (CPP-2.4). _added._
+- **D-CPP-CLCMDLINE1** — `cl.exe` command-line tokenizer scope and
+  limits (CPP-3.2). _added._
 - **D-CPP-SHOWINC-1** — `/showIncludes` parsing and directive-text
   reconstruction heuristic (CPP-3.x).
 - **D-CPP-LINK1** — `link /VERBOSE` parsing rules derived from the
@@ -286,3 +289,56 @@ not in scope for M2/M3 fixtures.
 MSBuild output (an event format we don't decode, a new aux record,
 etc.), our synthetic fixtures will not detect it. The M4 corpus is
 the safety net.
+
+---
+
+### D-CPP-CLCMDLINE1: `cl.exe` command-line tokenizer scope and limits
+
+Implementation lives in `src/cl_cmdline.rs` (`parse()` →
+`ClCommandLine`).
+
+**Decision.** Parse a `cl.exe` command line into four fields:
+
+1. `executable` — the first token, captured verbatim and not
+   otherwise interpreted.
+2. `source` — a single positional file whose extension matches
+   `.cpp`, `.cxx`, `.cc`, `.c`, `.c++` (case-insensitive). When
+   multiple matches appear the last wins; earlier matches move to
+   `other_switches` so nothing is lost.
+3. `include_paths` — every `/I` (or `-I`) value, in command-line
+   order, with the switch prefix stripped and surrounding quotes
+   removed. Both attached (`/Ipath`) and separated (`/I path`) forms
+   are recognized.
+4. `defines` — every `/D` (or `-D`) value, in command-line order,
+   split into `name` and optional `value` at the first `=`. Both
+   attached and separated forms are recognized.
+
+Every other token — recognized switches without a schema slot,
+unknown positionals, response-file directives — is preserved
+**verbatim** in `other_switches` so the analysis layer can flag or
+re-interpret them without losing data.
+
+**Tokenization.** Approximates `CommandLineToArgvW` for the inputs
+MSBuild actually emits: whitespace splits at top level, double-quoted
+runs are one token (with `""` denoting a literal `"`), and
+backslashes are treated as literal characters so Windows paths
+(`C:\foo\bar`) round-trip verbatim. This differs from
+`CommandLineToArgvW`'s backslash-before-quote rule, which
+MSBuild-emitted CL command lines do not exercise.
+
+**Explicit non-goals (v1).**
+
+- **No response-file expansion.** `@response.rsp` tokens land in
+  `other_switches` verbatim; their contents are not read or
+  re-parsed. CPP-3.x may revisit if real binlogs expose include /
+  define data only via response files.
+- **No `/U`, `/FI`, `/Yc`, `/Yu`, etc.** All other switches are
+  preserved verbatim; only `/I` and `/D` are structurally surfaced.
+- **No semantic interpretation** of paths or values (no
+  normalization, no resolution against project roots). That is the
+  job of later layers.
+
+**Tradeoff accepted.** A project that hides its include paths or
+defines inside a response file will appear to have no include search
+paths in the schema. The presence of `@…` tokens in `other_switches`
+is the signal that this has happened.

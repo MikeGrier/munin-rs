@@ -26,12 +26,14 @@
 // - CPP-1.4 alias
 
 pub mod alias;
+pub mod cl_cmdline;
 pub mod emit;
 pub mod path_root;
 pub mod schema;
 pub mod walk;
 
 pub use alias::AliasTable;
+pub use cl_cmdline::{ClCommandLine, parse as parse_cl_command_line};
 pub use emit::project_from_invocation;
 pub use path_root::to_rooted;
 pub use schema::{
