@@ -24,3 +24,11 @@
 // - CPP-1.2 schema
 // - CPP-1.3 path_root
 // - CPP-1.4 alias
+
+pub mod schema;
+
+pub use schema::{
+    CppBuildAnalysis, Define, DroppedInput, GlobalProperty, Header, IncludeNode, LinkInput,
+    LinkInputKind, LinkInputOrigin, Output, Project, PropertySource, Root, RootedPath,
+    SCHEMA_VERSION, Source,
+};
