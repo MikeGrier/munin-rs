@@ -53,7 +53,7 @@ output captured in the binlog.
   (`Cargo.toml`, `src/lib.rs`, `README.md`, `LICENSE`,
   `DESIGN-NOTES.md`). Wire into root `Cargo.toml` workspace.
   Dependencies: `munin-msbuild`, `serde`, `serde_json`, `thiserror`.
-- [ ] **CPP-1.2.** Write the JSON schema in
+- [x] **CPP-1.2.** Write the JSON schema in
   `crates/munin-cppbuild/DESIGN-NOTES.md` as **D-CPPSCHEMA-1**.
   Top-level: `header { tool_version, roots: [{name, path}],
   source_binlog }`, `projects[]`. Per project:
@@ -62,7 +62,7 @@ output captured in the binlog.
   `{ path, command_line, include_paths[], defines[], includes (tree),
   included_files (flat) }`. Per output: `{ path, command_line,
   inputs[], dropped[] }`. Record schema version constant.
-- [ ] **CPP-1.3.** Implement multi-root path canonicalizer in
+- [x] **CPP-1.3.** Implement multi-root path canonicalizer in
   `path_root.rs`: input = absolute path + ordered root list; output =
   `Rooted { root_index: Option<usize>, relative_or_absolute: String }`.
   Deterministic; case-insensitive match on Windows. Unit tests.
