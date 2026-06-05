@@ -139,7 +139,7 @@ output captured in the binlog.
 - [x] **CPP-4.2.** Link task identification and command-line
   tokenizer (`link_cmdline.rs`): output file, `/LIBPATH`, listed `.obj`
   and `.lib` inputs, other switches.
-- [ ] **CPP-4.3.** Verbose output parser in `link_verbose.rs` based
+- [x] **CPP-4.3.** Verbose output parser in `link_verbose.rs` based
   on D-CPP-LINK1. Produce: `inputs[] { path, kind: obj|lib,
   origin: direct|transitive|searched, referenced: bool }` and
   `dropped[] { path, reason }`. Unit tests against captured samples.

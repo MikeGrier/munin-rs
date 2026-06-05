@@ -30,6 +30,7 @@ pub mod cl_cmdline;
 pub mod cl_showincludes;
 pub mod emit;
 pub mod link_cmdline;
+pub mod link_verbose;
 pub mod path_root;
 pub mod schema;
 pub mod walk;
@@ -41,6 +42,7 @@ pub use cl_showincludes::{
 };
 pub use emit::project_from_invocation;
 pub use link_cmdline::{LinkCmdInput, LinkCommandLine, parse as parse_link_command_line};
+pub use link_verbose::{LinkVerbose, RawDroppedInput, RawLinkInput, parse as parse_link_verbose};
 pub use path_root::to_rooted;
 pub use schema::{
     CppBuildAnalysis, Define, DroppedInput, GlobalProperty, Header, IncludeNode, LinkInput,
