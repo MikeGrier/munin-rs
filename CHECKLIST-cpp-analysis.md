@@ -77,7 +77,7 @@ output captured in the binlog.
 
 ## Milestone 2 — Project-invocation extraction from binlogs
 
-- [ ] **CPP-2.1.** Add `binlog_walk.rs`: iterate `munin-msbuild`
+- [x] **CPP-2.1.** Add `walk.rs`: iterate `munin-msbuild`
   events; identify project-start / project-finish bracketing; collect
   per-project state (project file path, platform, configuration,
   global properties from the project-started payload).

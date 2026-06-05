@@ -28,6 +28,7 @@
 pub mod alias;
 pub mod path_root;
 pub mod schema;
+pub mod walk;
 
 pub use alias::AliasTable;
 pub use path_root::to_rooted;
@@ -36,3 +37,4 @@ pub use schema::{
     LinkInputKind, LinkInputOrigin, Output, Project, PropertySource, Root, RootedPath,
     SCHEMA_VERSION, Source,
 };
+pub use walk::{ProjectInvocation, walk_projects};
