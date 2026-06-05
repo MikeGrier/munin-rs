@@ -33,6 +33,7 @@ milestones complete.
 | D-CPP-FIXTURE1 | Integration fixtures are synthesized programmatically, not checked in as binary `.binlog` files | §D-CPP-FIXTURE1 |
 | D-CPP-CLCMDLINE1 | `cl.exe` command-line tokenizer scope and limits | §D-CPP-CLCMDLINE1 |
 | D-CPP-SHOWINC-1 | `/showIncludes` parsing rules and non-English-locale detection | §D-CPP-SHOWINC-1 |
+| D-CPP-LINK1 | `link.exe /VERBOSE` parsing rules and emission mapping | §D-CPP-LINK1 |
 
 Decisions are added here as milestones land:
 
@@ -50,7 +51,7 @@ Decisions are added here as milestones land:
 - **D-CPP-SHOWINC-1** — `/showIncludes` parsing rules and
   non-English-locale detection (CPP-3.3). _added._
 - **D-CPP-LINK1** — `link /VERBOSE` parsing rules derived from the
-  spike against the real binlog corpus (CPP-4.1).
+  spike against the real binlog corpus (CPP-4.1). _added._
 
 ---
 
@@ -450,3 +451,131 @@ candidate follow-on if the alignment heuristic proves reliable.
 These limits make directive-text alignment a best-effort enrichment,
 not a primary key. The schema's resolved-path-aliased keys remain
 authoritative.
+
+---
+
+### D-CPP-LINK1: `link.exe /VERBOSE` parsing rules
+
+Implementation will live in `src/link_cmdline.rs` (CPP-4.2) and
+`src/link_verbose.rs` (CPP-4.3). This section is the parser spec
+derived from CPP-4.1 spike data (see
+[`examples/link_spike.rs`](../examples/link_spike.rs)) captured into
+`.scratch/link-verbose-samples/` from real `.binlog` files.
+
+**Spike corpus.** Three real Microsoft cloudbuild binlogs were
+available to the spike; one contained a Link task (the other two are
+static-lib projects with no link step). The single Link task is
+~12k messages, ~2MB, with `/VERBOSE` (not `/VERBOSE:LIB|REF|ICF`) on
+an exe link consuming ~250 input `.lib` files and ~150 `/DEFAULTLIB`
+resolutions. This is a small but representative sample for v1; the
+rules below will be re-validated against the larger corpus when
+CPP-5.4's env-var-gated test runs.
+
+**Message granularity.** MSBuild's binlog records every line of
+`link.exe` console output as an individual `Message` event under the
+Link task bracket. The parser therefore operates on `&[String]`,
+one element per emitted line, with no further splitting required.
+
+**Line classes.** Each message is classified by **exact prefix
+match** (case-sensitive, ASCII). The leading-space count is
+structural and is part of the prefix — the linker emits a stable
+indentation scheme:
+
+| Class | Prefix (literal, including leading spaces) | Trailing capture |
+|-------|--------------------------------------------|------------------|
+| `PassStart`            | `Starting pass `              | pass number (1 or 2) |
+| `PassEnd`              | `Finished pass `              | pass number |
+| `DefaultLibProcessed`  | `Processed /DEFAULTLIB:`      | library name (no `.lib` required) |
+| `SearchingSection`     | `Searching libraries` (exact) | — |
+| `SearchingSectionEnd`  | `Finished searching libraries` (exact) | — |
+| `LibrarySearched`      | `    Searching ` (4 spaces) and trailing `:` | path between prefix and trailing `:` |
+| `SymbolFound`          | `      Found ` (6 spaces)     | symbol name (rest of line) |
+| `ReferencedIn`         | `        Referenced in ` (8 spaces) | referencing OBJ basename |
+| `LoadedMember`         | `        Loaded ` (8 spaces)  | `<lib-basename>(<member>)` |
+| `UnusedSection`        | `Unused libraries:` (exact)   | — |
+| `UnusedEntry`          | `  ` (2 spaces) **inside** the `UnusedSection` | path (rest of line) |
+| `Discarded`            | `Discarded `                  | full text (recorded but not surfaced in v1) |
+| `Other`                | anything else                 | passed through unchanged |
+
+**State.** The parser tracks two pieces of state:
+
+1. The **current `LibrarySearched` scope**, opened by a `LibrarySearched`
+   line and closed by the next `LibrarySearched`, `SearchingSectionEnd`,
+   or `UnusedSection`. Within this scope, `SymbolFound` / `ReferencedIn`
+   / `LoadedMember` lines attach to the open library.
+2. Whether we are currently **inside `UnusedSection`** — set when
+   `UnusedSection` is seen, cleared on the next line that is not an
+   `UnusedEntry` (so the section is terminated by any non-2-space line).
+
+All other classes are stateless and emit their data immediately.
+
+**Reference inference.** A library `L` is considered
+**referenced** (i.e. actually contributed code to the final image)
+if **at least one `LoadedMember` line appears inside an open
+`LibrarySearched(L)` scope**. The bare presence of `SymbolFound` /
+`ReferencedIn` lines is not sufficient — the linker prints those
+even for symbols it ultimately satisfies from another source.
+
+A library appearing in the `UnusedSection` is always
+**unreferenced**; if it also appears in some `LibrarySearched` scope
+with zero `LoadedMember` lines (the normal case), the two signals
+agree.
+
+**Emission to D-CPPSCHEMA-1.** For each Link task:
+
+- `outputs[].command_line` ← verbatim `TaskCommandLine` value.
+- `outputs[].path` ← `/OUT:<path>` switch from the command line.
+- `outputs[].inputs[]`: one entry per **command-line lib/obj input
+  and per `/DEFAULTLIB`**:
+  - `path` ← rooted path of the input as it appeared on the command
+    line (for command-line inputs) or as resolved by the first
+    `LibrarySearched` whose basename matches the `/DEFAULTLIB` name
+    (for `DefaultLibProcessed`). When neither yields a path, the
+    `/DEFAULTLIB` name is emitted as an absolute synthetic path
+    `defaultlib:<name>`.
+  - `kind` ← `lib` (`.lib`) or `obj` (`.obj`), by extension.
+  - `origin` ← `direct` (on the command line),
+    `searched` (from `/DEFAULTLIB` or via `/LIBPATH` discovery), or
+    `transitive` (Loaded but never explicitly named — rare, v1
+    emits only when observed).
+  - `referenced` ← per the inference rule above.
+- `outputs[].dropped[]`: one entry per `UnusedEntry`:
+  - `path` ← rooted path of the unused library.
+  - `reason` ← string literal `"unused"` (the only v1 vocabulary).
+
+**Explicit non-goals (v1).**
+
+- **No symbol-level data.** `SymbolFound` / `ReferencedIn` /
+  `Discarded` lines are parsed for state but not surfaced in the
+  schema. A future schema revision may add a `symbols[]` field per
+  input.
+- **No COMDAT-folding / ICF detail.** `Selected symbol:` /
+  `Replaced symbol(s):` / `ICF total savings:` blocks are passed
+  through as `Other`.
+- **No resource compiler sub-output.** `Microsoft (R) ... Resource
+  Compiler` banners and `adding resource. type:...` lines are
+  `Other`.
+- **No pass 2 listing.** The indented `<lib>(<member>)` list that
+  appears after `Starting pass 2` is redundant with the pass-1
+  `LoadedMember` lines and is currently treated as `Other`. May be
+  used as a cross-check later.
+- **No `/VERBOSE:LIB|REF|ICF|UNUSEDLIBS` differential parsing.** v1
+  assumes `/VERBOSE` (full). When only `/VERBOSE:UNUSEDLIBS` is
+  used, the `Searching libraries` block is absent but the
+  `Unused libraries:` block is still present; the parser tolerates
+  this naturally (no state transition fails).
+- **No localization.** Locale handling mirrors D-CPP-SHOWINC-1:
+  English `link.exe` only. Non-English output appears entirely as
+  `Other` and produces empty inputs/dropped data; CPP-5.x callers
+  may add a heuristic guard if needed.
+
+**Tradeoff accepted.** A linker that consumes a library purely via
+an obj that already has a `/DEFAULTLIB` reference (where the obj is
+on the command line, not the lib) will record the lib as `inputs[]`
+entry of `origin: searched` and `referenced: true` only if a
+`LoadedMember` line appears. If `link.exe` resolves the symbol
+entirely from another source on the same pass, the lib will look
+unused even though it satisfied a defaultlib reference. The
+`UnusedEntry` cross-check catches this for the explicit
+`Unused libraries:` set; corner cases outside that set may be
+mis-classified and are accepted for v1.

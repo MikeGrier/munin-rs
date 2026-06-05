@@ -130,7 +130,7 @@ output captured in the binlog.
 
 ## Milestone 4 — `link.exe /VERBOSE` parsing
 
-- [ ] **CPP-4.1.** **Spike.** Run the M3-stage pipeline against
+- [x] **CPP-4.1.** **Spike.** Run the M3-stage pipeline against
   ≥5 real binlogs from the user's corpus; capture raw Link task
   message streams to `.scratch/link-verbose-samples/`. Catalog
   observed line patterns (searched / loaded / found / referenced /
