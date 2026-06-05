@@ -30,7 +30,7 @@ fn run_pipeline(roots: &[Root]) -> (Vec<ProjectInvocation>, Vec<Project>) {
     let invocations = walk_projects(&index).expect("walk should succeed");
     let projects: Vec<Project> = invocations
         .iter()
-        .map(|inv| project_from_invocation(inv, roots))
+        .map(|inv| project_from_invocation(inv, &[], &[], roots))
         .collect();
     (invocations, projects)
 }

@@ -43,7 +43,7 @@ fn rooted_project_path_uses_first_matching_root() {
         &[],
     );
 
-    let p = project_from_invocation(&inv, &roots);
+    let p = project_from_invocation(&inv, &[], &[], &roots);
     assert_eq!(p.project_path.root, Some(0));
     assert_eq!(p.project_path.path, r"app\app.vcxproj");
 }
@@ -57,7 +57,7 @@ fn project_path_outside_roots_is_absolute() {
         &[],
     );
 
-    let p = project_from_invocation(&inv, &roots);
+    let p = project_from_invocation(&inv, &[], &[], &roots);
     assert_eq!(p.project_path.root, None);
     assert_eq!(p.project_path.path, r"D:\other\thing.vcxproj");
 }
@@ -65,7 +65,7 @@ fn project_path_outside_roots_is_absolute() {
 #[test]
 fn missing_project_file_emits_empty_rooted_path() {
     let inv = invocation(None, &[], &[]);
-    let p = project_from_invocation(&inv, &[]);
+    let p = project_from_invocation(&inv, &[], &[], &[]);
     assert_eq!(
         p.project_path,
         RootedPath {
@@ -85,7 +85,7 @@ fn platform_and_configuration_come_from_globals() {
         &[],
     );
 
-    let p = project_from_invocation(&inv, &roots);
+    let p = project_from_invocation(&inv, &[], &[], &roots);
     assert_eq!(p.configuration, "Debug");
     assert_eq!(p.platform, "ARM64");
 }
@@ -97,7 +97,7 @@ fn platform_and_configuration_fall_back_to_property_list() {
         &[],
         &[("Configuration", "Release"), ("Platform", "Win32")],
     );
-    let p = project_from_invocation(&inv, &[]);
+    let p = project_from_invocation(&inv, &[], &[], &[]);
     assert_eq!(p.configuration, "Release");
     assert_eq!(p.platform, "Win32");
 }
@@ -105,7 +105,7 @@ fn platform_and_configuration_fall_back_to_property_list() {
 #[test]
 fn missing_platform_and_configuration_become_empty_strings() {
     let inv = invocation(Some("a.vcxproj"), &[], &[]);
-    let p = project_from_invocation(&inv, &[]);
+    let p = project_from_invocation(&inv, &[], &[], &[]);
     assert_eq!(p.platform, "");
     assert_eq!(p.configuration, "");
 }
@@ -117,7 +117,7 @@ fn global_properties_all_marked_command_line() {
         &[("Configuration", "Debug"), ("Custom", "x")],
         &[],
     );
-    let p = project_from_invocation(&inv, &[]);
+    let p = project_from_invocation(&inv, &[], &[], &[]);
     assert_eq!(p.global_properties.len(), 2);
     for g in &p.global_properties {
         assert_eq!(g.source, PropertySource::CommandLine);
@@ -133,7 +133,7 @@ fn alias_table_contains_the_project_path() {
         &[],
     );
 
-    let p = project_from_invocation(&inv, &roots);
+    let p = project_from_invocation(&inv, &[], &[], &roots);
     assert_eq!(p.alias_table.len(), 1);
     // Some alias maps to the project path.
     let project_alias = p
@@ -148,7 +148,7 @@ fn alias_table_contains_the_project_path() {
 #[test]
 fn sources_and_outputs_are_empty_in_m2() {
     let inv = invocation(Some("x.vcxproj"), &[], &[]);
-    let p = project_from_invocation(&inv, &[]);
+    let p = project_from_invocation(&inv, &[], &[], &[]);
     assert!(p.sources.is_empty());
     assert!(p.outputs.is_empty());
 }

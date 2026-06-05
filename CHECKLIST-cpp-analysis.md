@@ -143,7 +143,7 @@ output captured in the binlog.
   on D-CPP-LINK1. Produce: `inputs[] { path, kind: obj|lib,
   origin: direct|transitive|searched, referenced: bool }` and
   `dropped[] { path, reason }`. Unit tests against captured samples.
-- [ ] **CPP-4.4.** Wire link analysis into project-invocation
+- [x] **CPP-4.4.** Wire link analysis into project-invocation
   emitter; aliases applied via the per-project alias table built
   after both CL and Link data are collected.
 - [ ] **CPP-4.5.** Integration test against a synthetic C++ project
