@@ -25,9 +25,11 @@
 // - CPP-1.3 path_root
 // - CPP-1.4 alias
 
+pub mod alias;
 pub mod path_root;
 pub mod schema;
 
+pub use alias::AliasTable;
 pub use path_root::to_rooted;
 pub use schema::{
     CppBuildAnalysis, Define, DroppedInput, GlobalProperty, Header, IncludeNode, LinkInput,

@@ -28,6 +28,7 @@ milestones complete.
 |----|----------|---------|
 | D-CPPSCHEMA-1 | JSON document schema for a single binlog's C++ build analysis | §D-CPPSCHEMA-1 |
 | D-CPP-PATHROOT-1 | Multi-root path canonicalization rules | `src/path_root.rs` |
+| D-CPP-ALIAS-1 | Alias-table construction algorithm | `src/alias.rs` |
 
 Decisions are added here as milestones land:
 
@@ -35,6 +36,7 @@ Decisions are added here as milestones land:
 - **D-CPP-PATHROOT-1** — Multi-root path canonicalization rules
   (CPP-1.3). _added in `src/path_root.rs`._
 - **D-CPP-ALIAS-1** — Alias-table construction algorithm (CPP-1.4).
+  _added in `src/alias.rs`._
 - **D-CPP-SHOWINC-1** — `/showIncludes` parsing and directive-text
   reconstruction heuristic (CPP-3.x).
 - **D-CPP-LINK1** — `link /VERBOSE` parsing rules derived from the

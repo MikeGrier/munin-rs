@@ -66,7 +66,7 @@ output captured in the binlog.
   `path_root.rs`: input = absolute path + ordered root list; output =
   `Rooted { root_index: Option<usize>, relative_or_absolute: String }`.
   Deterministic; case-insensitive match on Windows. Unit tests.
-- [ ] **CPP-1.4.** Implement alias builder in `alias.rs` per D-CPP-4.
+- [x] **CPP-1.4.** Implement alias builder in `alias.rs` per D-CPP-4.
   Input = set of `Rooted` paths; output = `AliasTable` (path → alias)
   built deterministically. Unit tests covering: all-unique leaves,
   last-two-segments tie-break, first+leaf tie-break, `#n` fallback,

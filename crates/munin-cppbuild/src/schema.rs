@@ -50,7 +50,7 @@ pub struct Root {
 /// `root` is the index into the document's `header.roots`; `None`
 /// means the path is absolute. `path` uses the host's native
 /// separator for emission but readers must accept both `\\` and `/`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct RootedPath {
     pub root: Option<usize>,
     pub path: String,
