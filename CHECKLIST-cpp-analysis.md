@@ -71,7 +71,7 @@ output captured in the binlog.
   built deterministically. Unit tests covering: all-unique leaves,
   last-two-segments tie-break, first+leaf tie-break, `#n` fallback,
   stable ordering across runs.
-- [ ] **CPP-1.5.** Integration test: feed a synthetic in-memory
+- [x] **CPP-1.5.** Integration test: feed a synthetic in-memory
   project description through schema + aliaser, assert JSON shape and
   alias choices match expectations.
 
