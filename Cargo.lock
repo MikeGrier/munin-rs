@@ -337,6 +337,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "munin-cppbuild"
+version = "0.3.1"
+dependencies = [
+ "munin-msbuild",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "munin-jsonlog-cli"
 version = "0.3.1"
 dependencies = [

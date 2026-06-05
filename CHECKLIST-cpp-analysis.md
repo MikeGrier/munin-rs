@@ -49,7 +49,7 @@ output captured in the binlog.
 
 ## Milestone 1 — Foundations: crate, schema, path aliasing
 
-- [ ] **CPP-1.1.** Create `crates/munin-cppbuild/` library crate
+- [x] **CPP-1.1.** Create `crates/munin-cppbuild/` library crate
   (`Cargo.toml`, `src/lib.rs`, `README.md`, `LICENSE`,
   `DESIGN-NOTES.md`). Wire into root `Cargo.toml` workspace.
   Dependencies: `munin-msbuild`, `serde`, `serde_json`, `thiserror`.
