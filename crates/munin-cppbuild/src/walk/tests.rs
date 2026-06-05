@@ -566,3 +566,115 @@ fn first_task_command_line_event_wins() {
     let cls = walk_cl_tasks(&index).expect("walk");
     assert_eq!(cls[0].command_line.as_deref(), Some("first"));
 }
+
+// ── Link task walker (CPP-4.2) ──
+
+#[test]
+fn no_link_tasks_yields_empty() {
+    let index = build_index(vec![]);
+    let links = walk_link_tasks(&index).expect("walk");
+    assert!(links.is_empty());
+}
+
+#[test]
+fn single_link_task_captures_command_line_and_messages() {
+    let index = build_index(vec![
+        project_started_event(
+            10,
+            r"C:\src\a.vcxproj",
+            &[("Configuration", "Release"), ("Platform", "x64")],
+            &[],
+        ),
+        task_started_event("Link", 10, 5),
+        task_command_line_event(r"link.exe /OUT:foo.dll /VERBOSE a.obj b.lib", 5),
+        message_event("Starting pass 1", 5),
+        message_event("Processed /DEFAULTLIB:MSVCRT", 5),
+        message_event("Unused libraries:", 5),
+        message_event(r"  C:\libs\b.lib", 5),
+        task_finished_event("Link", 10, 5),
+        project_finished_event(10),
+    ]);
+
+    let links = walk_link_tasks(&index).expect("walk");
+    assert_eq!(links.len(), 1);
+    assert_eq!(links[0].project_context_id, 10);
+    assert_eq!(
+        links[0].command_line.as_deref(),
+        Some(r"link.exe /OUT:foo.dll /VERBOSE a.obj b.lib")
+    );
+    assert_eq!(links[0].messages.len(), 4);
+    assert_eq!(links[0].messages[0], "Starting pass 1");
+    assert_eq!(links[0].messages[3], r"  C:\libs\b.lib");
+}
+
+#[test]
+fn cl_tasks_are_not_treated_as_link() {
+    let index = build_index(vec![
+        project_started_event(10, "p.vcxproj", &[], &[]),
+        task_started_event("CL", 10, 5),
+        task_command_line_event("cl a.cpp", 5),
+        task_finished_event("CL", 10, 5),
+        project_finished_event(10),
+    ]);
+    assert!(walk_link_tasks(&index).expect("walk").is_empty());
+}
+
+#[test]
+fn link_and_cl_tasks_coexist_independently() {
+    let index = build_index(vec![
+        project_started_event(10, "p.vcxproj", &[], &[]),
+        task_started_event("CL", 10, 5),
+        task_command_line_event("cl a.cpp", 5),
+        message_event("compile msg", 5),
+        task_finished_event("CL", 10, 5),
+        task_started_event("Link", 10, 6),
+        task_command_line_event("link a.obj", 6),
+        message_event("link msg", 6),
+        task_finished_event("Link", 10, 6),
+        project_finished_event(10),
+    ]);
+
+    let cls = walk_cl_tasks(&index).expect("walk");
+    let links = walk_link_tasks(&index).expect("walk");
+    assert_eq!(cls.len(), 1);
+    assert_eq!(cls[0].command_line.as_deref(), Some("cl a.cpp"));
+    assert_eq!(cls[0].messages, vec!["compile msg".to_string()]);
+    assert_eq!(links.len(), 1);
+    assert_eq!(links[0].command_line.as_deref(), Some("link a.obj"));
+    assert_eq!(links[0].messages, vec!["link msg".to_string()]);
+}
+
+#[test]
+fn multiple_link_tasks_in_one_project_preserve_order() {
+    let index = build_index(vec![
+        project_started_event(10, "p.vcxproj", &[], &[]),
+        task_started_event("Link", 10, 5),
+        task_command_line_event("link first.obj", 5),
+        task_finished_event("Link", 10, 5),
+        task_started_event("Link", 10, 6),
+        task_command_line_event("link second.obj", 6),
+        task_finished_event("Link", 10, 6),
+        project_finished_event(10),
+    ]);
+
+    let links = walk_link_tasks(&index).expect("walk");
+    assert_eq!(links.len(), 2);
+    assert_eq!(links[0].command_line.as_deref(), Some("link first.obj"));
+    assert_eq!(links[1].command_line.as_deref(), Some("link second.obj"));
+}
+
+#[test]
+fn link_task_with_no_command_line_event_is_still_emitted() {
+    let index = build_index(vec![
+        project_started_event(10, "p.vcxproj", &[], &[]),
+        task_started_event("Link", 10, 5),
+        message_event("Starting pass 1", 5),
+        task_finished_event("Link", 10, 5),
+        project_finished_event(10),
+    ]);
+
+    let links = walk_link_tasks(&index).expect("walk");
+    assert_eq!(links.len(), 1);
+    assert_eq!(links[0].command_line, None);
+    assert_eq!(links[0].messages.len(), 1);
+}

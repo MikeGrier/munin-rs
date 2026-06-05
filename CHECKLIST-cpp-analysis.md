@@ -136,7 +136,7 @@ output captured in the binlog.
   observed line patterns (searched / loaded / found / referenced /
   unused / dropped / unresolved). Write findings as D-CPP-LINK1 in
   `crates/munin-cppbuild/DESIGN-NOTES.md`.
-- [ ] **CPP-4.2.** Link task identification and command-line
+- [x] **CPP-4.2.** Link task identification and command-line
   tokenizer (`link_cmdline.rs`): output file, `/LIBPATH`, listed `.obj`
   and `.lib` inputs, other switches.
 - [ ] **CPP-4.3.** Verbose output parser in `link_verbose.rs` based

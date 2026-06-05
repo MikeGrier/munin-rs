@@ -29,6 +29,7 @@ pub mod alias;
 pub mod cl_cmdline;
 pub mod cl_showincludes;
 pub mod emit;
+pub mod link_cmdline;
 pub mod path_root;
 pub mod schema;
 pub mod walk;
@@ -39,10 +40,14 @@ pub use cl_showincludes::{
     LocaleNotSupportedError, RawIncludeNode, ShowIncludes, parse as parse_cl_show_includes,
 };
 pub use emit::project_from_invocation;
+pub use link_cmdline::{LinkCmdInput, LinkCommandLine, parse as parse_link_command_line};
 pub use path_root::to_rooted;
 pub use schema::{
     CppBuildAnalysis, Define, DroppedInput, GlobalProperty, Header, IncludeNode, LinkInput,
     LinkInputKind, LinkInputOrigin, Output, Project, PropertySource, Root, RootedPath,
     SCHEMA_VERSION, Source,
 };
-pub use walk::{CL_TASK_NAME, CompileInvocation, ProjectInvocation, walk_cl_tasks, walk_projects};
+pub use walk::{
+    CL_TASK_NAME, CompileInvocation, LINK_TASK_NAME, LinkInvocation, ProjectInvocation,
+    walk_cl_tasks, walk_link_tasks, walk_projects,
+};

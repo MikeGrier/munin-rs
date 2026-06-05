@@ -193,9 +193,77 @@ pub struct CompileInvocation {
 /// - When the CL task closes, the captured `CompileInvocation` is
 ///   emitted with the enclosing project's context id.
 pub fn walk_cl_tasks(index: &BinlogIndex) -> Result<Vec<CompileInvocation>, MuninError> {
-    let mut out: Vec<CompileInvocation> = Vec::new();
+    walk_named_tasks(
+        index,
+        CL_TASK_NAME,
+        |project_context_id, command_line, messages| CompileInvocation {
+            project_context_id,
+            command_line,
+            messages,
+        },
+    )
+}
+
+/// Name of the MSBuild task that drives `link.exe`.
+pub const LINK_TASK_NAME: &str = "Link";
+
+/// One `link.exe` invocation captured from the binlog stream.
+///
+/// Each TaskStarted/TaskFinished pair whose `task_name` equals
+/// [`LINK_TASK_NAME`] under an active project produces one
+/// `LinkInvocation`. Field semantics mirror [`CompileInvocation`].
+/// The [`crate::link_cmdline`] tokenizer consumes `command_line`;
+/// the [`crate::link_verbose`] parser consumes `messages`.
+#[derive(Debug, Clone)]
+pub struct LinkInvocation {
+    /// `BuildEventContext::project_context_id` of the enclosing
+    /// project.
+    pub project_context_id: i32,
+    /// Verbatim `link.exe` command line from the `TaskCommandLine`
+    /// event, or `None` if MSBuild did not emit one inside the
+    /// task bracket.
+    pub command_line: Option<String>,
+    /// Raw text of every `Message` event recorded inside the
+    /// Link task bracket, in stream order. With `/VERBOSE` enabled
+    /// this includes `Searching libraries`, `Found`, `Loaded`,
+    /// `Unused libraries:`, and other per-line linker diagnostics.
+    pub messages: Vec<String>,
+}
+
+/// Walk every Link-task invocation in `index`, in stream order.
+///
+/// Bracketing rules mirror [`walk_cl_tasks`], with `task_name ==
+/// "Link"`. The `/VERBOSE` output classified by D-CPP-LINK1 lives
+/// in `LinkInvocation::messages`.
+pub fn walk_link_tasks(index: &BinlogIndex) -> Result<Vec<LinkInvocation>, MuninError> {
+    walk_named_tasks(
+        index,
+        LINK_TASK_NAME,
+        |project_context_id, command_line, messages| LinkInvocation {
+            project_context_id,
+            command_line,
+            messages,
+        },
+    )
+}
+
+fn walk_named_tasks<T, F>(
+    index: &BinlogIndex,
+    task_name: &str,
+    mut build: F,
+) -> Result<Vec<T>, MuninError>
+where
+    F: FnMut(i32, Option<String>, Vec<String>) -> T,
+{
+    struct Cur {
+        project_context_id: i32,
+        command_line: Option<String>,
+        messages: Vec<String>,
+    }
+
+    let mut out: Vec<T> = Vec::new();
     let mut project_stack: Vec<i32> = Vec::new();
-    let mut current: Option<CompileInvocation> = None;
+    let mut current: Option<Cur> = None;
 
     for (i, _meta) in index.iter_meta() {
         let event = match index.get(i)? {
@@ -217,20 +285,20 @@ pub fn walk_cl_tasks(index: &BinlogIndex) -> Result<Vec<CompileInvocation>, Muni
                 project_stack.pop();
             }
             BinlogEvent::TaskStarted(ev)
-                if current.is_none() && ev.task_name.as_deref() == Some(CL_TASK_NAME) =>
+                if current.is_none() && ev.task_name.as_deref() == Some(task_name) =>
             {
                 let project_context_id = project_stack.last().copied().unwrap_or(0);
-                current = Some(CompileInvocation {
+                current = Some(Cur {
                     project_context_id,
                     command_line: None,
                     messages: Vec::new(),
                 });
             }
             BinlogEvent::TaskFinished(ev)
-                if ev.task_name.as_deref() == Some(CL_TASK_NAME) && current.is_some() =>
+                if ev.task_name.as_deref() == Some(task_name) && current.is_some() =>
             {
                 if let Some(c) = current.take() {
-                    out.push(c);
+                    out.push(build(c.project_context_id, c.command_line, c.messages));
                 }
             }
             BinlogEvent::TaskCommandLine(ev) => {

@@ -165,7 +165,7 @@ fn is_source_extension(path: &str) -> bool {
 /// Strip a single pair of surrounding double-quotes if present.
 /// Internal `""` sequences (escaped quotes) are not collapsed here —
 /// the tokenizer already handled them.
-fn unquote(s: &str) -> String {
+pub(crate) fn unquote(s: &str) -> String {
     let bytes = s.as_bytes();
     if bytes.len() >= 2 && bytes[0] == b'"' && bytes[bytes.len() - 1] == b'"' {
         s[1..s.len() - 1].to_string()
@@ -184,7 +184,7 @@ fn unquote(s: &str) -> String {
 /// verbatim — this differs from CommandLineToArgvW's
 /// backslash-before-quote rule, which MSBuild-emitted CL command
 /// lines do not exercise in practice.
-fn tokenize(s: &str) -> Vec<String> {
+pub(crate) fn tokenize(s: &str) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     let mut cur = String::new();
     let mut in_quotes = false;
