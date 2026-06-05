@@ -95,7 +95,7 @@ output captured in the binlog.
   at test time in `tests/common/mod.rs` (round-trips through
   `munin-msbuild`'s binlog writer for full-format coverage) rather than
   checked in as a binary `.binlog`. Real-binlog testing is M4's job._
-- [ ] **CPP-2.5.** Integration test that runs the M2 pipeline against
+- [x] **CPP-2.5.** Integration test that runs the M2 pipeline against
   the M2.4 fixture and asserts project metadata.
 
 ## Milestone 3 — `cl.exe /showIncludes` parsing
