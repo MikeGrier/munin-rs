@@ -128,28 +128,6 @@ output captured in the binlog.
   with header chain `a.cpp → a.h → b.h → c.h` and a duplicate
   include; verify tree, flat list, aliases.
 
-## Milestone 4 — `link.exe /VERBOSE` parsing
-
-- [x] **CPP-4.1.** **Spike.** Run the M3-stage pipeline against
-  ≥5 real binlogs from the user's corpus; capture raw Link task
-  message streams to `.scratch/link-verbose-samples/`. Catalog
-  observed line patterns (searched / loaded / found / referenced /
-  unused / dropped / unresolved). Write findings as D-CPP-LINK1 in
-  `crates/munin-cppbuild/DESIGN-NOTES.md`.
-- [x] **CPP-4.2.** Link task identification and command-line
-  tokenizer (`link_cmdline.rs`): output file, `/LIBPATH`, listed `.obj`
-  and `.lib` inputs, other switches.
-- [x] **CPP-4.3.** Verbose output parser in `link_verbose.rs` based
-  on D-CPP-LINK1. Produce: `inputs[] { path, kind: obj|lib,
-  origin: direct|transitive|searched, referenced: bool }` and
-  `dropped[] { path, reason }`. Unit tests against captured samples.
-- [x] **CPP-4.4.** Wire link analysis into project-invocation
-  emitter; aliases applied via the per-project alias table built
-  after both CL and Link data are collected.
-- [x] **CPP-4.5.** Integration test against a synthetic C++ project
-  that links a static lib and an exe with verbose output; verify
-  inputs / dropped / aliases.
-
 ## Milestone 5 — CLI surface and corpus harness
 
 - [ ] **CPP-5.1.** Add `analyze-cpp` (final name TBD) subcommand to
