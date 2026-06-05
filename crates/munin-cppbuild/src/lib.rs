@@ -39,4 +39,4 @@ pub use schema::{
     LinkInputKind, LinkInputOrigin, Output, Project, PropertySource, Root, RootedPath,
     SCHEMA_VERSION, Source,
 };
-pub use walk::{ProjectInvocation, walk_projects};
+pub use walk::{CL_TASK_NAME, CompileInvocation, ProjectInvocation, walk_cl_tasks, walk_projects};

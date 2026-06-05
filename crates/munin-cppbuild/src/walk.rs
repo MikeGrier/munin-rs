@@ -139,5 +139,120 @@ fn make_invocation(event: &ProjectStartedEvent) -> ProjectInvocation {
     }
 }
 
+/// Name of the MSBuild task that drives `cl.exe`.
+///
+/// The C++ `ClCompile` *target* invokes a *task* literally named
+/// `CL`. Real-binlog validation (CPP-4.1 spike) will confirm whether
+/// any other names appear in practice.
+pub const CL_TASK_NAME: &str = "CL";
+
+/// One `cl.exe` invocation captured from the binlog stream.
+///
+/// Each TaskStarted/TaskFinished pair whose `task_name` equals
+/// [`CL_TASK_NAME`] under an active project produces one
+/// `CompileInvocation`. `command_line` is taken from the
+/// `TaskCommandLine` event recorded inside the bracket; `messages`
+/// is the raw text of every `Message` event recorded inside the
+/// bracket, in stream order. The `/showIncludes` parser (CPP-3.3)
+/// consumes `messages`.
+#[derive(Debug, Clone)]
+pub struct CompileInvocation {
+    /// `BuildEventContext::project_context_id` of the enclosing
+    /// project. Used to attach this CL invocation to a
+    /// [`ProjectInvocation`] downstream.
+    pub project_context_id: i32,
+
+    /// Verbatim `cl.exe` command line from the `TaskCommandLine`
+    /// event, or `None` if MSBuild did not emit one inside the
+    /// task bracket.
+    pub command_line: Option<String>,
+
+    /// Raw text of every `Message` event recorded inside the
+    /// CL task bracket, in stream order. Includes `/showIncludes`
+    /// output, the source-file echo line, and any other compiler
+    /// diagnostics MSBuild forwarded.
+    pub messages: Vec<String>,
+}
+
+/// Walk every CL-task invocation in `index`, in stream order.
+///
+/// Bracketing rules:
+///
+/// - A project is "open" between a `ProjectStarted` event and the
+///   matching `ProjectFinished` event (matched by
+///   `BuildEventContext::project_context_id`). Nested projects
+///   stack: the innermost open project is the parent of any
+///   subsequent task.
+/// - A CL task is "open" between a `TaskStarted` with
+///   `task_name == "CL"` and its matching `TaskFinished`. Tasks
+///   are assumed to be non-nested within their parent project
+///   (MSBuild does not nest tasks).
+/// - While a CL task is open, the first `TaskCommandLine` event
+///   inside the bracket populates `command_line`; every `Message`
+///   event inside the bracket is appended to `messages`.
+/// - When the CL task closes, the captured `CompileInvocation` is
+///   emitted with the enclosing project's context id.
+pub fn walk_cl_tasks(index: &BinlogIndex) -> Result<Vec<CompileInvocation>, MuninError> {
+    let mut out: Vec<CompileInvocation> = Vec::new();
+    let mut project_stack: Vec<i32> = Vec::new();
+    let mut current: Option<CompileInvocation> = None;
+
+    for (i, _meta) in index.iter_meta() {
+        let event = match index.get(i)? {
+            Some(ev) => ev,
+            None => continue,
+        };
+
+        match event {
+            BinlogEvent::ProjectStarted(ev) => {
+                let id = ev
+                    .fields
+                    .build_event_context
+                    .as_ref()
+                    .map(|ctx| ctx.project_context_id)
+                    .unwrap_or(0);
+                project_stack.push(id);
+            }
+            BinlogEvent::ProjectFinished(_) => {
+                project_stack.pop();
+            }
+            BinlogEvent::TaskStarted(ev)
+                if current.is_none() && ev.task_name.as_deref() == Some(CL_TASK_NAME) =>
+            {
+                let project_context_id = project_stack.last().copied().unwrap_or(0);
+                current = Some(CompileInvocation {
+                    project_context_id,
+                    command_line: None,
+                    messages: Vec::new(),
+                });
+            }
+            BinlogEvent::TaskFinished(ev)
+                if ev.task_name.as_deref() == Some(CL_TASK_NAME) && current.is_some() =>
+            {
+                if let Some(c) = current.take() {
+                    out.push(c);
+                }
+            }
+            BinlogEvent::TaskCommandLine(ev) => {
+                if let Some(c) = current.as_mut()
+                    && c.command_line.is_none()
+                {
+                    c.command_line = ev.command_line.clone();
+                }
+            }
+            BinlogEvent::Message(ev) => {
+                if let Some(c) = current.as_mut()
+                    && let Some(msg) = &ev.fields.message
+                {
+                    c.messages.push(msg.clone());
+                }
+            }
+            _ => {}
+        }
+    }
+
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests;

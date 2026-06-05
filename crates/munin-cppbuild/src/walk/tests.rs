@@ -282,3 +282,287 @@ fn to_global_properties_is_empty_when_no_globals() {
     let projects = walk_projects(&index).expect("walk");
     assert!(projects[0].to_global_properties().is_empty());
 }
+
+// ── walk_cl_tasks ──────────────────────────────────────────────────
+
+fn project_finished_event(project_context_id: i32) -> JsonlogEvent {
+    let body = serde_json::json!({
+        "fields": {
+            "flags": BuildEventArgsFieldFlags::BUILD_EVENT_CONTEXT.bits() as i32,
+            "build_event_context": {
+                "node_id": 1,
+                "project_context_id": project_context_id,
+                "target_id": -1,
+                "task_id": -1,
+                "submission_id": 0,
+                "project_instance_id": project_context_id,
+                "evaluation_id": -1,
+            },
+            "thread_id": 0, "importance": 0,
+            "line_number": 0, "column_number": 0,
+            "end_line_number": 0, "end_column_number": 0,
+        },
+        "project_file": "p.vcxproj",
+        "succeeded": true,
+    });
+    JsonlogEvent {
+        kind: "ProjectFinished".to_string(),
+        byte_offset: 0,
+        body: JsonlogEventBody::Decoded(body),
+    }
+}
+
+fn task_started_event(task_name: &str, project_context_id: i32, task_id: i32) -> JsonlogEvent {
+    let body = serde_json::json!({
+        "fields": {
+            "flags": BuildEventArgsFieldFlags::BUILD_EVENT_CONTEXT.bits() as i32,
+            "build_event_context": {
+                "node_id": 1,
+                "project_context_id": project_context_id,
+                "target_id": 1,
+                "task_id": task_id,
+                "submission_id": 0,
+                "project_instance_id": project_context_id,
+                "evaluation_id": -1,
+            },
+            "thread_id": 0, "importance": 0,
+            "line_number": 0, "column_number": 0,
+            "end_line_number": 0, "end_column_number": 0,
+        },
+        "task_name": task_name,
+        "project_file": "p.vcxproj",
+        "task_file": null,
+        "task_assembly_location": null,
+    });
+    JsonlogEvent {
+        kind: "TaskStarted".to_string(),
+        byte_offset: 0,
+        body: JsonlogEventBody::Decoded(body),
+    }
+}
+
+fn task_finished_event(task_name: &str, project_context_id: i32, task_id: i32) -> JsonlogEvent {
+    let body = serde_json::json!({
+        "fields": {
+            "flags": BuildEventArgsFieldFlags::BUILD_EVENT_CONTEXT.bits() as i32,
+            "build_event_context": {
+                "node_id": 1,
+                "project_context_id": project_context_id,
+                "target_id": 1,
+                "task_id": task_id,
+                "submission_id": 0,
+                "project_instance_id": project_context_id,
+                "evaluation_id": -1,
+            },
+            "thread_id": 0, "importance": 0,
+            "line_number": 0, "column_number": 0,
+            "end_line_number": 0, "end_column_number": 0,
+        },
+        "succeeded": true,
+        "task_name": task_name,
+        "project_file": "p.vcxproj",
+        "task_file": null,
+    });
+    JsonlogEvent {
+        kind: "TaskFinished".to_string(),
+        byte_offset: 0,
+        body: JsonlogEventBody::Decoded(body),
+    }
+}
+
+fn task_command_line_event(command: &str, task_id: i32) -> JsonlogEvent {
+    let body = serde_json::json!({
+        "fields": {
+            "flags": (BuildEventArgsFieldFlags::BUILD_EVENT_CONTEXT.bits()
+                | BuildEventArgsFieldFlags::MESSAGE.bits()) as i32,
+            "message": command,
+            "build_event_context": {
+                "node_id": 1,
+                "project_context_id": 10,
+                "target_id": 1,
+                "task_id": task_id,
+                "submission_id": 0,
+                "project_instance_id": 10,
+                "evaluation_id": -1,
+            },
+            "thread_id": 0, "importance": 1,
+            "line_number": 0, "column_number": 0,
+            "end_line_number": 0, "end_column_number": 0,
+        },
+        "command_line": command,
+        "task_name": "CL",
+    });
+    JsonlogEvent {
+        kind: "TaskCommandLine".to_string(),
+        byte_offset: 0,
+        body: JsonlogEventBody::Decoded(body),
+    }
+}
+
+fn message_event(text: &str, task_id: i32) -> JsonlogEvent {
+    let body = serde_json::json!({
+        "fields": {
+            "flags": (BuildEventArgsFieldFlags::BUILD_EVENT_CONTEXT.bits()
+                | BuildEventArgsFieldFlags::MESSAGE.bits()) as i32,
+            "message": text,
+            "build_event_context": {
+                "node_id": 1,
+                "project_context_id": 10,
+                "target_id": 1,
+                "task_id": task_id,
+                "submission_id": 0,
+                "project_instance_id": 10,
+                "evaluation_id": -1,
+            },
+            "thread_id": 0, "importance": 1,
+            "line_number": 0, "column_number": 0,
+            "end_line_number": 0, "end_column_number": 0,
+        },
+    });
+    JsonlogEvent {
+        kind: "Message".to_string(),
+        byte_offset: 0,
+        body: JsonlogEventBody::Decoded(body),
+    }
+}
+
+#[test]
+fn no_cl_tasks_yields_empty() {
+    let index = build_index(vec![]);
+    let cls = walk_cl_tasks(&index).expect("walk");
+    assert!(cls.is_empty());
+}
+
+#[test]
+fn single_cl_task_captures_command_line_and_messages() {
+    let index = build_index(vec![
+        project_started_event(
+            10,
+            r"C:\src\a.vcxproj",
+            &[("Configuration", "Debug"), ("Platform", "x64")],
+            &[],
+        ),
+        task_started_event("CL", 10, 5),
+        task_command_line_event(r"CL.exe /c a.cpp /showIncludes", 5),
+        message_event(r"Note: including file: C:\sdk\stdio.h", 5),
+        message_event(r"Note: including file:  C:\sdk\stddef.h", 5),
+        task_finished_event("CL", 10, 5),
+        project_finished_event(10),
+    ]);
+
+    let cls = walk_cl_tasks(&index).expect("walk");
+    assert_eq!(cls.len(), 1);
+    assert_eq!(cls[0].project_context_id, 10);
+    assert_eq!(
+        cls[0].command_line.as_deref(),
+        Some(r"CL.exe /c a.cpp /showIncludes")
+    );
+    assert_eq!(cls[0].messages.len(), 2);
+    assert!(cls[0].messages[0].contains("stdio.h"));
+    assert!(cls[0].messages[1].contains("stddef.h"));
+}
+
+#[test]
+fn non_cl_tasks_are_ignored() {
+    let index = build_index(vec![
+        project_started_event(10, "p.vcxproj", &[], &[]),
+        task_started_event("Csc", 10, 5),
+        task_command_line_event(r"csc.exe /target:exe", 5),
+        message_event("not a CL message", 5),
+        task_finished_event("Csc", 10, 5),
+        project_finished_event(10),
+    ]);
+
+    let cls = walk_cl_tasks(&index).expect("walk");
+    assert!(cls.is_empty());
+}
+
+#[test]
+fn message_outside_cl_bracket_is_dropped() {
+    let index = build_index(vec![
+        project_started_event(10, "p.vcxproj", &[], &[]),
+        message_event("before any task", 0),
+        task_started_event("CL", 10, 5),
+        message_event("inside", 5),
+        task_finished_event("CL", 10, 5),
+        message_event("after task", 0),
+        project_finished_event(10),
+    ]);
+
+    let cls = walk_cl_tasks(&index).expect("walk");
+    assert_eq!(cls.len(), 1);
+    assert_eq!(cls[0].messages, vec!["inside".to_string()]);
+}
+
+#[test]
+fn multiple_cl_tasks_in_one_project() {
+    let index = build_index(vec![
+        project_started_event(10, "p.vcxproj", &[], &[]),
+        task_started_event("CL", 10, 5),
+        task_command_line_event("cl a.cpp", 5),
+        message_event("Note: including file: a.h", 5),
+        task_finished_event("CL", 10, 5),
+        task_started_event("CL", 10, 6),
+        task_command_line_event("cl b.cpp", 6),
+        message_event("Note: including file: b.h", 6),
+        task_finished_event("CL", 10, 6),
+        project_finished_event(10),
+    ]);
+
+    let cls = walk_cl_tasks(&index).expect("walk");
+    assert_eq!(cls.len(), 2);
+    assert_eq!(cls[0].command_line.as_deref(), Some("cl a.cpp"));
+    assert_eq!(cls[0].messages, vec!["Note: including file: a.h"]);
+    assert_eq!(cls[1].command_line.as_deref(), Some("cl b.cpp"));
+    assert_eq!(cls[1].messages, vec!["Note: including file: b.h"]);
+}
+
+#[test]
+fn cl_tasks_across_two_projects_get_distinct_context_ids() {
+    let index = build_index(vec![
+        project_started_event(10, "a.vcxproj", &[], &[]),
+        task_started_event("CL", 10, 5),
+        task_finished_event("CL", 10, 5),
+        project_finished_event(10),
+        project_started_event(11, "b.vcxproj", &[], &[]),
+        task_started_event("CL", 11, 7),
+        task_finished_event("CL", 11, 7),
+        project_finished_event(11),
+    ]);
+
+    let cls = walk_cl_tasks(&index).expect("walk");
+    assert_eq!(cls.len(), 2);
+    assert_eq!(cls[0].project_context_id, 10);
+    assert_eq!(cls[1].project_context_id, 11);
+}
+
+#[test]
+fn cl_task_with_no_command_line_event_is_still_emitted() {
+    let index = build_index(vec![
+        project_started_event(10, "p.vcxproj", &[], &[]),
+        task_started_event("CL", 10, 5),
+        message_event("Note: including file: a.h", 5),
+        task_finished_event("CL", 10, 5),
+        project_finished_event(10),
+    ]);
+
+    let cls = walk_cl_tasks(&index).expect("walk");
+    assert_eq!(cls.len(), 1);
+    assert_eq!(cls[0].command_line, None);
+    assert_eq!(cls[0].messages.len(), 1);
+}
+
+#[test]
+fn first_task_command_line_event_wins() {
+    let index = build_index(vec![
+        project_started_event(10, "p.vcxproj", &[], &[]),
+        task_started_event("CL", 10, 5),
+        task_command_line_event("first", 5),
+        task_command_line_event("second", 5),
+        task_finished_event("CL", 10, 5),
+        project_finished_event(10),
+    ]);
+
+    let cls = walk_cl_tasks(&index).expect("walk");
+    assert_eq!(cls[0].command_line.as_deref(), Some("first"));
+}

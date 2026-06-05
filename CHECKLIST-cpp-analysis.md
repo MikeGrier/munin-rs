@@ -100,7 +100,7 @@ output captured in the binlog.
 
 ## Milestone 3 — `cl.exe /showIncludes` parsing
 
-- [ ] **CPP-3.1.** CL task identification: in `binlog_walk.rs`,
+- [x] **CPP-3.1.** CL task identification: in `binlog_walk.rs`,
   recognize `CL` task invocations under a C++ project; capture the
   command line and the per-TU message stream.
 - [ ] **CPP-3.2.** Command-line tokenizer in `cl_cmdline.rs`: split
