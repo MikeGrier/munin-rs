@@ -30,6 +30,7 @@ milestones complete.
 | D-CPP-PATHROOT-1 | Multi-root path canonicalization rules | `src/path_root.rs` |
 | D-CPP-ALIAS-1 | Alias-table construction algorithm | `src/alias.rs` |
 | D-CPP-PROPSRC1 | All global properties are emitted with `source = command_line` | §D-CPP-PROPSRC1 |
+| D-CPP-FIXTURE1 | Integration fixtures are synthesized programmatically, not checked in as binary `.binlog` files | §D-CPP-FIXTURE1 |
 
 Decisions are added here as milestones land:
 
@@ -40,6 +41,8 @@ Decisions are added here as milestones land:
   _added in `src/alias.rs`._
 - **D-CPP-PROPSRC1** — Property source attribution rule (CPP-2.2).
   _added._
+- **D-CPP-FIXTURE1** — Synthetic in-memory integration fixtures
+  (CPP-2.4). _added._
 - **D-CPP-SHOWINC-1** — `/showIncludes` parsing and directive-text
   reconstruction heuristic (CPP-3.x).
 - **D-CPP-LINK1** — `link /VERBOSE` parsing rules derived from the
@@ -249,3 +252,37 @@ hundreds of evaluated defaults that would drown the output. Their
 values remain available internally for fallback lookups (e.g.
 deriving `Configuration` / `Platform` when those weren't passed via
 `/p:`).
+
+---
+
+### D-CPP-FIXTURE1: Synthetic in-memory fixtures, not checked-in binlogs
+
+Implementation lives in `tests/common/mod.rs`
+(`synthetic_vcxproj_binlog()`).
+
+**Decision.** Integration tests under this crate construct their
+`.binlog` byte streams programmatically at runtime via
+[`munin_msbuild::BinlogIndex::from_jsonlog`] +
+[`munin_msbuild::BinlogIndex::write_binlog`] rather than checking
+binary `.binlog` files into `tests/data/`.
+
+**Rationale.**
+
+- The fixture is a behavioural spec, not a sample. Hand-crafted JSON
+  of `ProjectStarted` / `ProjectFinished` makes the test intent
+  obvious to a reader; a binary blob does not.
+- No dependency on a working MSBuild installation at test time.
+- Diffable, no git LFS pressure, no fixture-regeneration step.
+- The round-trip through `write_binlog` exercises the full binlog
+  encode → decode path the production code will see, so we still
+  validate the real binary format, not just our in-memory shape.
+
+**Scope.** Real-binlog testing (full corpus of cloudbuild-emitted
+`.binlog` files, end-to-end with `cl /showIncludes` and `link
+/VERBOSE` output) is the explicit job of M4 (CPP-4.1 spike) and is
+not in scope for M2/M3 fixtures.
+
+**Tradeoff accepted.** If `munin-msbuild`'s writer drifts from real
+MSBuild output (an event format we don't decode, a new aux record,
+etc.), our synthetic fixtures will not detect it. The M4 corpus is
+the safety net.

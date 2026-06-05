@@ -87,10 +87,14 @@ output captured in the binlog.
   discriminator (`command_line` | `project`).
 - [x] **CPP-2.3.** Implement project-level JSON emitter: produces the
   M1 schema's `projects[]` entries with empty `sources` / `outputs`.
-- [ ] **CPP-2.4.** Synthetic-binlog fixture: write a minimal
+- [x] **CPP-2.4.** Synthetic-binlog fixture: write a minimal
   `.vcxproj` (or reuse `testprojects/`) that produces a binlog with
   one C++ project, two platform/configuration combos. Check in the
   resulting binlog under `tests/data/` (≤10 KB target).
+  _Deviation: per D-CPP-FIXTURE1 the fixture is built programmatically
+  at test time in `tests/common/mod.rs` (round-trips through
+  `munin-msbuild`'s binlog writer for full-format coverage) rather than
+  checked in as a binary `.binlog`. Real-binlog testing is M4's job._
 - [ ] **CPP-2.5.** Integration test that runs the M2 pipeline against
   the M2.4 fixture and asserts project metadata.
 
