@@ -85,7 +85,7 @@ output captured in the binlog.
   `/p:` properties set on the MSBuild invocation versus per-project
   properties. Record both under `global_properties` with a `source`
   discriminator (`command_line` | `project`).
-- [ ] **CPP-2.3.** Implement project-level JSON emitter: produces the
+- [x] **CPP-2.3.** Implement project-level JSON emitter: produces the
   M1 schema's `projects[]` entries with empty `sources` / `outputs`.
 - [ ] **CPP-2.4.** Synthetic-binlog fixture: write a minimal
   `.vcxproj` (or reuse `testprojects/`) that produces a binlog with
