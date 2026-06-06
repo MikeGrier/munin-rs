@@ -19,18 +19,46 @@ use crate::{
 /// Top-level dispatch. Errors are returned as human-readable strings
 /// (the binary's `main` prints them to stderr).
 pub fn dispatch<S: OutputSink>(cli: Cli, sink: &mut S) -> Result<(), String> {
+    let verbose = cli.verbose;
     match cli.command {
-        Command::Dump(args) => run_dump(args, sink),
-        Command::Pack(args) => run_pack(args, sink),
-        Command::AnalyzeCpp(args) => run_analyze_cpp(args, sink),
+        Command::Dump(args) => run_dump(args, verbose, sink),
+        Command::Pack(args) => run_pack(args, verbose, sink),
+        Command::AnalyzeCpp(args) => run_analyze_cpp(args, verbose, sink),
     }
 }
 
-fn run_dump<S: OutputSink>(args: DumpArgs, sink: &mut S) -> Result<(), String> {
+/// Write a progress line for input `i` of `total` to the sink's
+/// diagnostic stream. `target` is `None` for stdout output.
+fn report_progress<S: OutputSink>(
+    sink: &mut S,
+    i: usize,
+    total: usize,
+    input: &Path,
+    target: Option<&Path>,
+) {
+    let dest = match target {
+        Some(p) => p.display().to_string(),
+        None => "<stdout>".to_string(),
+    };
+    let _ = writeln!(
+        sink.err(),
+        "[{}/{}] {} -> {}",
+        i + 1,
+        total,
+        input.display(),
+        dest,
+    );
+}
+
+fn run_dump<S: OutputSink>(args: DumpArgs, verbose: bool, sink: &mut S) -> Result<(), String> {
     let inputs = expand_inputs(&args.input)?;
     let plan = OutputPlan::resolve(&inputs, args.output.as_deref(), "jsonlog")?;
+    let total = inputs.len();
 
-    for (input, target) in inputs.iter().zip(plan.targets.iter()) {
+    for (i, (input, target)) in inputs.iter().zip(plan.targets.iter()).enumerate() {
+        if verbose {
+            report_progress(sink, i, total, input, target.as_deref());
+        }
         let index = load_and_redact_binlog(input, &args.redact)?;
         let mut bytes = Vec::new();
         if args.pretty {
@@ -44,11 +72,15 @@ fn run_dump<S: OutputSink>(args: DumpArgs, sink: &mut S) -> Result<(), String> {
     Ok(())
 }
 
-fn run_pack<S: OutputSink>(args: PackArgs, sink: &mut S) -> Result<(), String> {
+fn run_pack<S: OutputSink>(args: PackArgs, verbose: bool, sink: &mut S) -> Result<(), String> {
     let inputs = expand_inputs(&args.input)?;
     let plan = OutputPlan::resolve(&inputs, args.output.as_deref(), "binlog")?;
+    let total = inputs.len();
 
-    for (input, target) in inputs.iter().zip(plan.targets.iter()) {
+    for (i, (input, target)) in inputs.iter().zip(plan.targets.iter()).enumerate() {
+        if verbose {
+            report_progress(sink, i, total, input, target.as_deref());
+        }
         let index = load_and_redact_jsonlog(input, &args.redact)?;
         let mut bytes = Vec::new();
         index
@@ -59,9 +91,14 @@ fn run_pack<S: OutputSink>(args: PackArgs, sink: &mut S) -> Result<(), String> {
     Ok(())
 }
 
-fn run_analyze_cpp<S: OutputSink>(args: AnalyzeCppArgs, sink: &mut S) -> Result<(), String> {
+fn run_analyze_cpp<S: OutputSink>(
+    args: AnalyzeCppArgs,
+    verbose: bool,
+    sink: &mut S,
+) -> Result<(), String> {
     let inputs = expand_inputs(&args.input)?;
     let plan = OutputPlan::resolve(&inputs, args.output.as_deref(), "cpp.json")?;
+    let total = inputs.len();
 
     let explicit_roots: Vec<munin_cppbuild::Root> = args
         .root
@@ -75,7 +112,10 @@ fn run_analyze_cpp<S: OutputSink>(args: AnalyzeCppArgs, sink: &mut S) -> Result<
         munin_cppbuild::LocaleStrategy::BestEffort
     };
 
-    for (input, target) in inputs.iter().zip(plan.targets.iter()) {
+    for (i, (input, target)) in inputs.iter().zip(plan.targets.iter()).enumerate() {
+        if verbose {
+            report_progress(sink, i, total, input, target.as_deref());
+        }
         let f = File::open(input).map_err(|e| format!("open {}: {e}", input.display()))?;
         let index = BinlogIndex::open(BufReader::new(f))
             .map_err(|e| format!("read binlog {}: {e}", input.display()))?;

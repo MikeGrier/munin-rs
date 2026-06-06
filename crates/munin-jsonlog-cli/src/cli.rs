@@ -11,6 +11,11 @@ use clap::{Parser, Subcommand};
 pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
+
+    /// Print per-input progress (e.g. `[2/7] foo.binlog -> foo.cpp.json`)
+    /// to stderr as each glob-expanded input is processed.
+    #[arg(short = 'v', long = "verbose", global = true)]
+    pub verbose: bool,
 }
 
 /// Top-level subcommands.

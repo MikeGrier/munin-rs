@@ -173,3 +173,76 @@ fn analyze_cpp_glob_expands_recursively_and_writes_per_input() {
         assert_eq!(doc["schema_version"], 1, "{}: bad schema", p.display());
     }
 }
+
+#[test]
+fn analyze_cpp_verbose_prints_per_input_progress_to_stderr() {
+    let tmp = tempdir().expect("tempdir");
+    let out_dir = tmp.path().join("out");
+    fs::create_dir(&out_dir).unwrap();
+
+    let a = tmp.path().join("a.binlog");
+    let b = tmp.path().join("b.binlog");
+    fs::write(&a, synthetic_cl_task_binlog(CL_COMMAND, CL_MESSAGES)).unwrap();
+    fs::write(&b, synthetic_cl_task_binlog(CL_COMMAND, CL_MESSAGES)).unwrap();
+
+    let pattern = format!("{}/*.binlog", tmp.path().display());
+
+    let out = Command::cargo_bin("munin-jsonlog")
+        .expect("locate munin-jsonlog binary")
+        .arg("-v")
+        .arg("analyze-cpp")
+        .arg(&pattern)
+        .arg("-o")
+        .arg(&out_dir)
+        .output()
+        .expect("run munin-jsonlog");
+
+    assert!(
+        out.status.success(),
+        "command failed: {}",
+        String::from_utf8_lossy(&out.stderr),
+    );
+
+    let stderr = String::from_utf8(out.stderr).expect("stderr is utf-8");
+    assert!(
+        stderr.contains("[1/2]") && stderr.contains("[2/2]"),
+        "expected per-input progress in stderr; got: {stderr}",
+    );
+    assert!(
+        stderr.contains("a.binlog") && stderr.contains("b.binlog"),
+        "expected input paths in stderr; got: {stderr}",
+    );
+    assert!(
+        stderr.contains("a.cpp.json") && stderr.contains("b.cpp.json"),
+        "expected output paths in stderr; got: {stderr}",
+    );
+}
+
+#[test]
+fn analyze_cpp_quiet_by_default_no_progress_on_stderr() {
+    let tmp = tempdir().expect("tempdir");
+    let binlog_path = tmp.path().join("synth.binlog");
+    let json_path = tmp.path().join("synth.cpp.json");
+
+    fs::write(
+        &binlog_path,
+        synthetic_cl_task_binlog(CL_COMMAND, CL_MESSAGES),
+    )
+    .expect("write synthetic binlog");
+
+    let out = Command::cargo_bin("munin-jsonlog")
+        .expect("locate munin-jsonlog binary")
+        .arg("analyze-cpp")
+        .arg(&binlog_path)
+        .arg("-o")
+        .arg(&json_path)
+        .output()
+        .expect("run munin-jsonlog");
+
+    assert!(out.status.success());
+    let stderr = String::from_utf8(out.stderr).expect("stderr is utf-8");
+    assert!(
+        !stderr.contains("[1/1]"),
+        "no progress should be printed without -v; got stderr: {stderr}",
+    );
+}

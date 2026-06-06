@@ -6,11 +6,11 @@ jsonlog format, with optional redaction.
 ## Usage
 
 ```text
-munin-jsonlog dump <INPUT>... [-o <FILE|DIR>] [--pretty] [REDACT-FLAGS]
-munin-jsonlog pack <INPUT>... [-o <FILE|DIR>] [REDACT-FLAGS]
+munin-jsonlog dump <INPUT>... [-o <FILE|DIR>] [--pretty] [REDACT-FLAGS] [-v]
+munin-jsonlog pack <INPUT>... [-o <FILE|DIR>] [REDACT-FLAGS] [-v]
 munin-jsonlog analyze-cpp <INPUT>... [-o <FILE|DIR>] [--pretty]
                           [--root [NAME=]PATH ...] [--auto-root]
-                          [--locale-strict]
+                          [--locale-strict] [-v]
 ```
 
 ### Input expansion
@@ -38,6 +38,20 @@ munin-jsonlog analyze-cpp "build/**/*.binlog" -o out/ --auto-root
 - **Multiple inputs, `-o DIR`**: `DIR` must already exist and be a
   directory; each result is written there as `<stem>.<ext>`. Passing
   a non-directory `-o` with multiple inputs is an error.
+
+### `-v` / `--verbose`
+
+Pass `-v` (or `--verbose`) at any position to print a per-input
+progress line to **stderr** as each glob-expanded input is processed:
+
+```text
+[1/3] ci/runs/a.binlog -> ci/cpp-json/a.cpp.json
+[2/3] ci/runs/b.binlog -> ci/cpp-json/b.cpp.json
+[3/3] ci/runs/c.binlog -> ci/cpp-json/c.cpp.json
+```
+
+When output is going to stdout, the destination is shown as
+`<stdout>`. The flag is global and applies to all subcommands.
 
 ### `analyze-cpp` subcommand
 
