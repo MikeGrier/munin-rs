@@ -158,7 +158,7 @@ when N = 1), so a clean split is possible.
   depth-stack reset across markers, anonymous-then-named TU
   separation, marker-only-no-includes TUs, and cross-TU malformed
   accumulation.
-- [ ] **CPP-4.6.4.** `emit.rs`: emit one `Source` per cmdline
+- [x] **CPP-4.6.4.** `emit.rs`: emit one `Source` per cmdline
   source, joined to the corresponding TU by case-insensitive
   basename. Cmdline sources with no TU emit an empty include tree;
   orphan TUs emit a `Source` with the marker basename and a

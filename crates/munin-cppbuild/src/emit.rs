@@ -18,7 +18,7 @@ use std::collections::{BTreeMap, HashMap};
 use crate::{
     alias::AliasTable,
     cl_cmdline::{self, ClCommandLine},
-    cl_showincludes::{self, LocaleNotSupportedError, RawIncludeNode, ShowIncludes},
+    cl_showincludes::{self, LocaleNotSupportedError, RawIncludeNode, ShowIncludes, TuIncludes},
     link_cmdline::{self, LinkCommandLine},
     link_verbose::{self, LinkVerbose},
     path_root::to_rooted,
@@ -78,11 +78,6 @@ pub fn project_from_invocation(
         intern(p, roots, &mut rooted);
     }
     for cl in &cl_parses {
-        // CPP-4.6.2 single-source bridge: emit.rs still treats one
-        // CL invocation as one TU; CPP-4.6.4 will iterate every
-        // source. For now collect every cmdline source into the
-        // path universe so that batch-mode cmdlines don't silently
-        // drop paths.
         for src in &cl.cmd.sources {
             intern(src, roots, &mut rooted);
         }
@@ -91,6 +86,11 @@ pub fn project_from_invocation(
         }
         if let Ok(si) = &cl.includes {
             for tu in &si.translation_units {
+                // Orphan TUs (marker matches no cmdline source)
+                // emit a Source whose path is the marker basename.
+                if let Some(name) = &tu.source_name {
+                    intern(name, roots, &mut rooted);
+                }
                 for h in &tu.included_files {
                     intern(h, roots, &mut rooted);
                 }
@@ -125,7 +125,7 @@ pub fn project_from_invocation(
 
     let sources: Vec<Source> = cl_parses
         .iter()
-        .map(|cl| build_source(cl, &alias_of))
+        .flat_map(|cl| build_sources(cl, &alias_of))
         .collect();
     let outputs: Vec<Output> = link_parses
         .iter()
@@ -175,17 +175,23 @@ impl<'a> LinkParse<'a> {
     }
 }
 
-fn build_source(cl: &ClParse, alias_of: &dyn Fn(&str) -> String) -> Source {
-    // CPP-4.6.2 single-source bridge: take the first cmdline
-    // source. Full per-TU emission lands in CPP-4.6.4.
-    let path = cl
-        .cmd
-        .sources
-        .first()
-        .map(|s| alias_of(s))
-        .unwrap_or_default();
-    let include_paths = cl.cmd.include_paths.iter().map(|p| alias_of(p)).collect();
-    let defines = cl
+/// Emit one [`Source`] per source file on the CL command line,
+/// joining each to its `/showIncludes` TU by case-insensitive
+/// basename match (D-CPP-SHOWINC2).
+///
+/// - Each cmdline source produces exactly one `Source`.
+/// - A cmdline source whose basename matches a TU's `source_name`
+///   carries that TU's include tree and flat list.
+/// - A cmdline source with no matching TU emits with an empty
+///   tree and empty `included_files` (the TU produced no
+///   includes, or the locale guard failed and there are no TUs).
+/// - Anonymous TUs (`source_name: None`) and TUs whose marker
+///   matches no cmdline source are surfaced as additional
+///   `Source` entries with `path` set to the marker basename's
+///   alias (or empty for anonymous) so no header data is lost.
+fn build_sources(cl: &ClParse, alias_of: &dyn Fn(&str) -> String) -> Vec<Source> {
+    let include_paths: Vec<String> = cl.cmd.include_paths.iter().map(|p| alias_of(p)).collect();
+    let defines: Vec<Define> = cl
         .cmd
         .defines
         .iter()
@@ -194,29 +200,104 @@ fn build_source(cl: &ClParse, alias_of: &dyn Fn(&str) -> String) -> Source {
             value: d.value.clone(),
         })
         .collect();
+    let command_line = cl.inv.command_line.clone().unwrap_or_default();
 
-    let (includes, included_files) = match &cl.includes {
-        Ok(si) => si
-            .translation_units
-            .first()
-            .map(|tu| {
-                (
-                    build_includes_map(&tu.tree, alias_of),
-                    tu.included_files.iter().map(|p| alias_of(p)).collect(),
-                )
-            })
-            .unwrap_or_else(|| (BTreeMap::new(), Vec::new())),
-        Err(_) => (BTreeMap::new(), Vec::new()),
+    let tus: &[TuIncludes] = match &cl.includes {
+        Ok(si) => si.translation_units.as_slice(),
+        Err(_) => &[],
     };
 
-    Source {
-        path,
-        command_line: cl.inv.command_line.clone().unwrap_or_default(),
-        include_paths,
-        defines,
-        includes,
-        included_files,
+    // Track which TUs have been claimed by a cmdline source so
+    // unclaimed ones (orphans / anonymous) can be emitted at the
+    // end as extra Source entries.
+    let mut claimed = vec![false; tus.len()];
+
+    let mut out: Vec<Source> = Vec::with_capacity(cl.cmd.sources.len());
+
+    for src in &cl.cmd.sources {
+        let src_base = basename_lower(src);
+        // First pass: try basename match against a named TU.
+        let matched = tus.iter().enumerate().find_map(|(i, tu)| {
+            if claimed[i] {
+                return None;
+            }
+            let name = tu.source_name.as_deref()?;
+            (name.to_ascii_lowercase() == src_base).then_some(i)
+        });
+        // Fallback: positional match against the next unclaimed
+        // anonymous TU. This handles the no-boundary-marker case
+        // (e.g. test fixtures, or non-batch tool output) where
+        // the parser produced a single anonymous TU per source.
+        let matched = matched.or_else(|| {
+            tus.iter()
+                .enumerate()
+                .find(|(i, tu)| tu.source_name.is_none() && !claimed[*i])
+                .map(|(i, _)| i)
+        });
+        let (includes, included_files) = match matched {
+            Some(i) => {
+                claimed[i] = true;
+                (
+                    build_includes_map(&tus[i].tree, alias_of),
+                    tus[i].included_files.iter().map(|p| alias_of(p)).collect(),
+                )
+            }
+            None => (BTreeMap::new(), Vec::new()),
+        };
+        out.push(Source {
+            path: alias_of(src),
+            command_line: command_line.clone(),
+            include_paths: include_paths.clone(),
+            defines: defines.clone(),
+            includes,
+            included_files,
+        });
     }
+
+    // Emit any unclaimed TUs (anonymous or non-matching markers)
+    // so their includes are preserved. Path falls back to the
+    // marker basename, or empty for anonymous.
+    for (i, tu) in tus.iter().enumerate() {
+        if claimed[i] {
+            continue;
+        }
+        let path = match &tu.source_name {
+            Some(name) => alias_of(name),
+            None => String::new(),
+        };
+        out.push(Source {
+            path,
+            command_line: command_line.clone(),
+            include_paths: include_paths.clone(),
+            defines: defines.clone(),
+            includes: build_includes_map(&tu.tree, alias_of),
+            included_files: tu.included_files.iter().map(|p| alias_of(p)).collect(),
+        });
+    }
+
+    // If there were no cmdline sources and no TUs, still emit one
+    // empty Source so the CL task is represented in the schema
+    // (matches prior single-Source behavior).
+    if out.is_empty() {
+        out.push(Source {
+            path: String::new(),
+            command_line,
+            include_paths,
+            defines,
+            includes: BTreeMap::new(),
+            included_files: Vec::new(),
+        });
+    }
+
+    out
+}
+
+/// Lowercased last path segment of `s`, splitting on both `\` and
+/// `/`. Used for case-insensitive basename matching between
+/// cmdline sources and TU markers.
+fn basename_lower(s: &str) -> String {
+    let last = s.rsplit(['\\', '/']).next().unwrap_or(s);
+    last.to_ascii_lowercase()
 }
 
 fn build_includes_map(
