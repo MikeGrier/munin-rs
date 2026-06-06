@@ -163,7 +163,7 @@ when N = 1), so a clean split is possible.
   basename. Cmdline sources with no TU emit an empty include tree;
   orphan TUs emit a `Source` with the marker basename and a
   diagnostic. Update emit unit tests.
-- [ ] **CPP-4.6.5.** Integration test: synthetic batch-mode CL
+- [x] **CPP-4.6.5.** Integration test: synthetic batch-mode CL
   binlog with three sources `a.cpp`, `b.cpp`, `c.cpp` (each with
   distinct includes); assert three `Source` entries with correct
   attribution and that no headers cross-contaminate between TUs.
