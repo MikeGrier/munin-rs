@@ -182,7 +182,7 @@ when N = 1), so a clean split is possible.
   example to `crates/munin-cppbuild/README.md`.
 - [x] **CPP-5.3.** CLI roundtrip integration test against the M2/M3
   synthetic binlogs.
-- [ ] **CPP-5.4.** Env-var-gated test
+- [x] **CPP-5.4.** Env-var-gated test
   (`MUNIN_CPPBUILD_TEST_BINLOGS=<dir>`): iterate every `.binlog`,
   run the pipeline, assert no errors and that emitted JSON
   validates against the schema. Skip cleanly when unset.
