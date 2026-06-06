@@ -167,7 +167,7 @@ when N = 1), so a clean split is possible.
   binlog with three sources `a.cpp`, `b.cpp`, `c.cpp` (each with
   distinct includes); assert three `Source` entries with correct
   attribution and that no headers cross-contaminate between TUs.
-- [ ] **CPP-4.6.6.** Re-run `cl_pipeline_demo` against the real
+- [x] **CPP-4.6.6.** Re-run `cl_pipeline_demo` against the real
   corpus; confirm `AgentMonitoring` now reports 13 sources with
   per-TU counts (not one bogus 1806-header source). Capture the
   new output to `.scratch/cl_pipeline_demo_real_corpus.txt`.
