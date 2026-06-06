@@ -276,3 +276,42 @@ fn parse_realistic_msbuild_cl_command_line() {
     assert!(cl.other_switches.iter().any(|s| s == "/showIncludes"));
     assert!(cl.other_switches.iter().any(|s| s == r"/Foobj\main.obj"));
 }
+
+// ── lowercase-prefix switches must NOT match /D or /I ──
+
+#[test]
+fn parse_lowercase_diagnostics_switch_is_not_a_define() {
+    // Real-world regression: `/diagnostics:classic` (lowercase d)
+    // is an MSVC switch that controls diagnostic format. It must
+    // be preserved verbatim in other_switches, not parsed as a
+    // define named `iagnostics:classic`.
+    let cl = parse("CL.exe /diagnostics:classic main.cpp");
+    assert!(cl.defines.is_empty(), "/diagnostics is not a define");
+    assert!(
+        cl.other_switches
+            .iter()
+            .any(|s| s == "/diagnostics:classic"),
+        "/diagnostics:classic must be preserved verbatim"
+    );
+    assert_eq!(cl.sources, vec!["main.cpp"]);
+}
+
+#[test]
+fn parse_lowercase_d1_d2_switches_are_not_defines() {
+    // `/d1*` and `/d2*` are internal MSVC switches (e.g.
+    // `/d1reportTime`, `/d2Zi+`); they must not be parsed as
+    // defines.
+    let cl = parse("CL.exe /d1reportTime /d2Zi+ main.cpp");
+    assert!(cl.defines.is_empty());
+    assert!(cl.other_switches.iter().any(|s| s == "/d1reportTime"));
+    assert!(cl.other_switches.iter().any(|s| s == "/d2Zi+"));
+}
+
+#[test]
+fn parse_lowercase_i_prefix_switch_is_not_an_include_path() {
+    // No lowercase-`i` cl.exe switch in common use today, but the
+    // same case-sensitivity rule must hold for `/I` as for `/D`.
+    let cl = parse("CL.exe /ignoreMe main.cpp");
+    assert!(cl.include_paths.is_empty());
+    assert!(cl.other_switches.iter().any(|s| s == "/ignoreMe"));
+}

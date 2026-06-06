@@ -133,12 +133,16 @@ fn strip_switch_prefix(tok: &str) -> Option<&str> {
 }
 
 /// If `body` begins with `letter` (case-sensitive), return the
-/// remainder; otherwise `None`. `cl.exe` switches are
-/// case-insensitive, but `/I` and `/D` are the canonical forms; we
-/// match both cases to be safe.
+/// remainder; otherwise `None`.
+///
+/// `cl.exe` treats `/D` and `/I` as **uppercase-only** switches.
+/// Lowercase prefixes like `/diagnostics:…`, `/doc`, `/d1…`,
+/// `/d2…` are unrelated switches that must NOT be parsed as
+/// defines/includes — matching case-insensitively here would
+/// silently turn `/diagnostics:classic` into a define named
+/// `iagnostics:classic`.
 fn strip_letter(body: &str, letter: char) -> Option<&str> {
     body.strip_prefix(letter)
-        .or_else(|| body.strip_prefix(letter.to_ascii_lowercase()))
 }
 
 /// Split `NAME[=VALUE]`.
