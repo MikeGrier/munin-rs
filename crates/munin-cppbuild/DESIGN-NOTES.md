@@ -17,7 +17,7 @@ emits a single JSON document per binlog.
 
 ## Scope and locked decisions
 
-See [`CHECKLIST-cpp-analysis.md`](../../CHECKLIST-cpp-analysis.md) for
+See [`COMPLETED-CHECKLIST.md`](../../COMPLETED-CHECKLIST.md) for
 the binding scope decisions D-CPP-1..8. They are the source of truth
 during initial development; canonical entries will move here as
 milestones complete.

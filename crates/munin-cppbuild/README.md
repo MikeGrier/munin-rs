@@ -17,7 +17,7 @@ consumed:
 ## Status
 
 Early development. See
-[CHECKLIST](../../CHECKLIST-cpp-analysis.md) and
+[CHECKLIST](../../COMPLETED-CHECKLIST.md) and
 [DESIGN-NOTES](DESIGN-NOTES.md) for the in-progress design and
 roadmap.
 

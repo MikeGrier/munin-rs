@@ -29,7 +29,7 @@ produces a structured JSON document describing every translation unit
 headers) and every link invocation (command line, consumed inputs,
 dropped inputs) per project. See
 [`crates/munin-cppbuild`](crates/munin-cppbuild) for the library API
-and [`crates/munin-jsonlog-cli/README.md`](crates/munin-jsonlog-cli)
+and [`crates/munin-jsonlog-cli/README.md`](crates/munin-jsonlog-cli/README.md)
 for CLI usage.
 
 ## Repository layout
