@@ -188,3 +188,110 @@ End-to-end verified against the real corpus binlog
 `link_pipeline_demo` example reports 13/236 inputs referenced and
 214 unused libraries (the entire `absl_*` family) — confirming the
 pipeline surfaces unreferenced `AdditionalDependencies`.
+
+
+## Moved 2026-06-05 — CPP-1.x..3.x, 4.6, 5.x: C/C++ binlog analysis (`munin-cppbuild`)
+
+Derive, from MSBuild `.binlog` files produced by `.vcxproj` builds, a
+structured JSON document describing what each project built and what
+it consumed — sourced from `cl.exe /showIncludes` and `link.exe
+/VERBOSE` output captured in the binlog.
+
+(CPP-4.1..4.5 — Milestone 4 link parsing — were moved separately on
+2026-04-19, above.)
+
+### Scope decisions (locked)
+
+- **D-CPP-1.** One JSON file per binlog. Top-level shape:
+  `{ header, projects: [...] }`.
+- **D-CPP-2.** Path rooting: `--root <dir>` (repeatable to support
+  separate drives, e.g. NuGet cache on D:\). Paths inside any root are
+  emitted relative to that root with the root's index/name; paths
+  outside all roots are emitted absolute. `--auto-root` derives one
+  root from the longest common ancestor of project paths in the
+  binlog. Roots are recorded in the JSON header.
+- **D-CPP-3.** Alias scope is **per project-invocation**.
+- **D-CPP-4.** Alias algorithm: leaf-name if unique → else last two
+  segments → else `<first-segment>\..\<leaf>` → else `<leaf>#n`.
+- **D-CPP-5.** English `cl.exe` / `link.exe` only for v1.
+- **D-CPP-6.** New library crate `crates/munin-cppbuild/`; new
+  subcommand `analyze-cpp` in `munin-jsonlog-cli`.
+- **D-CPP-7.** Tiny sanitized synthetic binlogs in tests; large real
+  corpus gated on env var `MUNIN_CPPBUILD_TEST_BINLOGS=<dir>`.
+- **D-CPP-8.** Linker `/VERBOSE` granularity deferred to M4 (resolved
+  in CPP-4.1 spike, see D-CPP-LINK1 in crate DESIGN-NOTES).
+
+### Milestone 1 — Foundations: crate, schema, path aliasing
+
+- [x] **CPP-1.1.** Create `crates/munin-cppbuild/` library crate
+  (`Cargo.toml`, `src/lib.rs`, `README.md`, `LICENSE`,
+  `DESIGN-NOTES.md`). Wire into root `Cargo.toml` workspace.
+  Dependencies: `munin-msbuild`, `serde`, `serde_json`, `thiserror`.
+- [x] **CPP-1.2.** Write the JSON schema in
+  `crates/munin-cppbuild/DESIGN-NOTES.md` as **D-CPPSCHEMA-1**.
+- [x] **CPP-1.3.** Implement multi-root path canonicalizer in
+  `path_root.rs`.
+- [x] **CPP-1.4.** Implement alias builder in `alias.rs` per D-CPP-4.
+- [x] **CPP-1.5.** Integration test: synthetic in-memory project
+  through schema + aliaser.
+
+### Milestone 2 — Project-invocation extraction from binlogs
+
+- [x] **CPP-2.1.** Add `walk.rs`.
+- [x] **CPP-2.2.** Surface command-line / global properties with a
+  `source` discriminator (`command_line` | `project`).
+- [x] **CPP-2.3.** Project-level JSON emitter producing M1
+  `projects[]` entries with empty `sources` / `outputs`.
+- [x] **CPP-2.4.** Synthetic-binlog fixture (built programmatically
+  per D-CPP-FIXTURE1).
+- [x] **CPP-2.5.** Integration test against the M2.4 fixture.
+
+### Milestone 3 — `cl.exe /showIncludes` parsing
+
+- [x] **CPP-3.1.** CL task identification.
+- [x] **CPP-3.2.** Command-line tokenizer in `cl_cmdline.rs`.
+- [x] **CPP-3.3.** `/showIncludes` parser in `cl_showincludes.rs`.
+- [x] **CPP-3.4.** Directive-text → resolved-file mapping derivation.
+- [x] **CPP-3.5.** Integration test for `a.cpp → a.h → b.h → c.h`
+  with duplicates.
+
+### Milestone 4.5 — CL batch-mode support (CPP-4.6)
+
+Real-corpus verification of M3 surfaced a defect class: cl.exe is
+routinely invoked in batch mode with N source files in one command
+line. The pipeline now splits per-TU on bare-basename markers.
+
+- [x] **CPP-4.6.1.** Capture findings in `DESIGN-NOTES.md` as
+  D-CPP-SHOWINC2.
+- [x] **CPP-4.6.2.** `cl_cmdline.rs`: `source: Option<String>` →
+  `sources: Vec<String>`.
+- [x] **CPP-4.6.3.** `cl_showincludes.rs`: per-TU split on marker
+  lines.
+- [x] **CPP-4.6.4.** `emit.rs`: one `Source` per cmdline source,
+  joined by case-insensitive basename.
+- [x] **CPP-4.6.5.** Integration test: synthetic batch-mode CL binlog
+  with three sources.
+- [x] **CPP-4.6.6.** Re-run `cl_pipeline_demo` against the real
+  corpus; AgentMonitoring reports 13 sources with correct per-TU
+  counts.
+
+### Milestone 5 — CLI surface and corpus harness
+
+- [x] **CPP-5.1.** Add `analyze-cpp` subcommand to
+  `munin-jsonlog-cli`: `input`, `--output / -o`, `--root [NAME=]PATH`
+  (repeatable), `--auto-root`, `--pretty`, `--locale-strict`. Wires
+  to `munin-cppbuild::analyze`.
+- [x] **CPP-5.2.** Update `munin-jsonlog-cli` README and add a usage
+  example to `crates/munin-cppbuild/README.md`.
+- [x] **CPP-5.3.** CLI roundtrip integration test against the M2/M3
+  synthetic binlogs (`tests/cli_analyze_cpp.rs`). Synthetic fixture
+  builders relocated to `munin_cppbuild::testkit` so downstream
+  crates can build the same fixtures.
+- [x] **CPP-5.4.** Env-var-gated test
+  (`MUNIN_CPPBUILD_TEST_BINLOGS=<dir>`): iterate every `.binlog`,
+  run the pipeline, assert no errors and JSON roundtrips through
+  `serde_json::from_value::<CppBuildAnalysis>`. Skips cleanly when
+  unset.
+- [x] **CPP-5.5.** Root `README.md` updated with a paragraph
+  pointing at `munin-jsonlog analyze-cpp` and the `munin-cppbuild`
+  crate.
