@@ -15,9 +15,13 @@
 //!   token, backslashes are literal (typical Windows paths), and
 //!   `""` inside a quoted run is a literal `"`.
 //! - **Switch recognition** covers exactly the switches the schema
-//!   surfaces (`/I`, `/D`) plus extraction of the source file by
+//!   surfaces (`/I`, `/D`) plus extraction of source files by
 //!   extension. Every other switch is preserved verbatim in
 //!   [`ClCommandLine::other_switches`].
+//! - **Batch mode.** `cl.exe` accepts N source files on one
+//!   command line (N ≥ 1). All matching positional tokens are
+//!   collected, in cmdline order, into
+//!   [`ClCommandLine::sources`]; see D-CPP-SHOWINC2.
 //! - **Response files** (`@file.rsp`) are **not** expanded. They are
 //!   recorded verbatim in `other_switches` so the analysis can flag
 //!   them but the file's contents are not re-parsed in v1.
@@ -31,11 +35,13 @@ pub struct ClCommandLine {
     /// `CL.exe` or an absolute path to it).  `None` if the input
     /// was empty.
     pub executable: Option<String>,
-    /// Source file passed as a positional argument (case-insensitive
-    /// match against `.cpp`, `.cxx`, `.cc`, `.c`, `.c++`).  When
-    /// multiple matches appear the **last** one wins; earlier matches
-    /// move to [`other_switches`].
-    pub source: Option<String>,
+    /// Source files passed as positional arguments (case-insensitive
+    /// match against `.cpp`, `.cxx`, `.cc`, `.c`, `.c++`), in
+    /// command-line order. Empty when the cmdline only contains
+    /// switches (rare; usually a response-file invocation).
+    ///
+    /// See D-CPP-SHOWINC2 for batch-mode semantics.
+    pub sources: Vec<String>,
     /// `/I` include paths in command-line order, with `/I` stripped
     /// and surrounding quotes removed.
     pub include_paths: Vec<String>,
@@ -108,16 +114,11 @@ pub fn parse(command_line: &str) -> ClCommandLine {
             continue;
         }
 
-        // Positional.  Source file if its extension matches.
+        // Positional. Collect source files in cmdline order;
+        // route everything else to other_switches verbatim.
         if is_source_extension(tok) {
-            if let Some(prev) = out.source.take() {
-                // A later source file appeared; demote the earlier
-                // one back to other_switches so nothing is lost.
-                out.other_switches.push(prev);
-            }
-            out.source = Some(unquote(tok));
+            out.sources.push(unquote(tok));
         } else {
-            // Unknown positional — preserve verbatim.
             out.other_switches.push(tok.clone());
         }
         i += 1;

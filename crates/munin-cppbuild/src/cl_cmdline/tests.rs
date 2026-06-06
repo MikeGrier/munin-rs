@@ -162,7 +162,7 @@ fn parse_preserves_define_order() {
 #[test]
 fn parse_extracts_cpp_source_file() {
     let cl = parse("CL.exe /c main.cpp");
-    assert_eq!(cl.source.as_deref(), Some("main.cpp"));
+    assert_eq!(cl.sources, vec!["main.cpp"]);
     assert_eq!(cl.other_switches, vec!["/c"]);
 }
 
@@ -171,21 +171,39 @@ fn parse_extracts_source_by_extension_case_insensitive() {
     for ext in [".CPP", ".Cxx", ".cc", ".C", ".c++"] {
         let name = format!("src{ext}");
         let cl = parse(&format!("CL.exe {name}"));
-        assert_eq!(cl.source.as_deref(), Some(name.as_str()), "ext {ext}");
+        assert_eq!(cl.sources, vec![name.clone()], "ext {ext}");
     }
 }
 
 #[test]
 fn parse_quoted_source_path_unquoted() {
     let cl = parse(r#"CL.exe "C:\some dir\main.cpp""#);
-    assert_eq!(cl.source.as_deref(), Some(r"C:\some dir\main.cpp"));
+    assert_eq!(cl.sources, vec![r"C:\some dir\main.cpp"]);
 }
 
 #[test]
-fn parse_last_source_wins_earlier_demoted_to_other_switches() {
-    let cl = parse("CL.exe a.cpp b.cpp");
-    assert_eq!(cl.source.as_deref(), Some("b.cpp"));
-    assert_eq!(cl.other_switches, vec!["a.cpp"]);
+fn parse_batch_mode_collects_all_sources_in_order() {
+    // cl.exe batch mode: N sources on one cmdline. All are
+    // retained in cmdline order; none are demoted.
+    let cl = parse("CL.exe a.cpp b.cpp c.cpp");
+    assert_eq!(cl.sources, vec!["a.cpp", "b.cpp", "c.cpp"]);
+    assert!(
+        cl.other_switches.is_empty(),
+        "sources must not leak into other_switches"
+    );
+}
+
+#[test]
+fn parse_batch_mode_sources_interleaved_with_switches() {
+    let cl = parse("CL.exe /c a.cpp /W4 b.cpp /nologo c.cpp");
+    assert_eq!(cl.sources, vec!["a.cpp", "b.cpp", "c.cpp"]);
+    assert_eq!(cl.other_switches, vec!["/c", "/W4", "/nologo"]);
+}
+
+#[test]
+fn parse_no_source_yields_empty_sources_vec() {
+    let cl = parse("CL.exe /c /nologo");
+    assert!(cl.sources.is_empty());
 }
 
 // ── parse: other switches ──
@@ -221,7 +239,7 @@ fn parse_empty_yields_default_with_no_executable() {
 fn parse_executable_only() {
     let cl = parse("CL.exe");
     assert_eq!(cl.executable.as_deref(), Some("CL.exe"));
-    assert!(cl.source.is_none());
+    assert!(cl.sources.is_empty());
     assert!(cl.include_paths.is_empty());
     assert!(cl.defines.is_empty());
     assert!(cl.other_switches.is_empty());
@@ -250,7 +268,7 @@ fn parse_realistic_msbuild_cl_command_line() {
     );
     let define_names: Vec<&str> = cl.defines.iter().map(|d| d.name.as_str()).collect();
     assert_eq!(define_names, vec!["WIN32", "_DEBUG", "_CONSOLE"]);
-    assert_eq!(cl.source.as_deref(), Some("main.cpp"));
+    assert_eq!(cl.sources, vec!["main.cpp"]);
     assert!(cl.other_switches.iter().any(|s| s == "/c"));
     assert!(cl.other_switches.iter().any(|s| s == "/EHsc"));
     assert!(cl.other_switches.iter().any(|s| s == "/W4"));

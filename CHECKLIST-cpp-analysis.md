@@ -142,7 +142,7 @@ when N = 1), so a clean split is possible.
   D-CPP-SHOWINC2: batch-mode invariant, boundary-marker rule,
   per-TU split algorithm, basename-join rule, and the
   schema-invariance decision (one `Source` per cmdline source).
-- [ ] **CPP-4.6.2.** `cl_cmdline.rs`: replace
+- [x] **CPP-4.6.2.** `cl_cmdline.rs`: replace
   `ClCommandLine.source: Option<String>` with
   `sources: Vec<String>` in command-line order; update tokenizer
   and tests. Keep `other_switches` semantics intact for non-source

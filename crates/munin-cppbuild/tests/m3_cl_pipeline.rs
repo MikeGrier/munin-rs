@@ -121,7 +121,7 @@ fn baseline_chain_with_duplicate_include() {
     let d = derive(cmd, &msgs, &roots);
 
     // Command-line extraction.
-    assert_eq!(d.command_line.source.as_deref(), Some("a.cpp"));
+    assert_eq!(d.command_line.sources, vec!["a.cpp"]);
     assert_eq!(d.command_line.include_paths, vec![r"C:\proj\include"]);
     let define_names: Vec<&str> = d
         .command_line
@@ -263,7 +263,7 @@ fn realistic_stdlib_chain_iostream_style() {
     let d = derive(cmd, &msgs, &roots);
 
     // Command-line surface.
-    assert_eq!(d.command_line.source.as_deref(), Some("main.cpp"));
+    assert_eq!(d.command_line.sources, vec!["main.cpp"]);
     assert_eq!(d.command_line.include_paths, vec![r"C:\src\include"]);
     let define_names: Vec<&str> = d
         .command_line

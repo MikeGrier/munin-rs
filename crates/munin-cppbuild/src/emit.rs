@@ -78,7 +78,12 @@ pub fn project_from_invocation(
         intern(p, roots, &mut rooted);
     }
     for cl in &cl_parses {
-        if let Some(src) = cl.cmd.source.as_deref() {
+        // CPP-4.6.2 single-source bridge: emit.rs still treats one
+        // CL invocation as one TU; CPP-4.6.4 will iterate every
+        // source. For now collect every cmdline source into the
+        // path universe so that batch-mode cmdlines don't silently
+        // drop paths.
+        for src in &cl.cmd.sources {
             intern(src, roots, &mut rooted);
         }
         for inc in &cl.cmd.include_paths {
@@ -169,7 +174,14 @@ impl<'a> LinkParse<'a> {
 }
 
 fn build_source(cl: &ClParse, alias_of: &dyn Fn(&str) -> String) -> Source {
-    let path = cl.cmd.source.as_deref().map(alias_of).unwrap_or_default();
+    // CPP-4.6.2 single-source bridge: take the first cmdline
+    // source. Full per-TU emission lands in CPP-4.6.4.
+    let path = cl
+        .cmd
+        .sources
+        .first()
+        .map(|s| alias_of(s))
+        .unwrap_or_default();
     let include_paths = cl.cmd.include_paths.iter().map(|p| alias_of(p)).collect();
     let defines = cl
         .cmd
