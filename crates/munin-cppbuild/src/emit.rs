@@ -90,10 +90,12 @@ pub fn project_from_invocation(
             intern(inc, roots, &mut rooted);
         }
         if let Ok(si) = &cl.includes {
-            for h in &si.included_files {
-                intern(h, roots, &mut rooted);
+            for tu in &si.translation_units {
+                for h in &tu.included_files {
+                    intern(h, roots, &mut rooted);
+                }
+                walk_raw_tree(&tu.tree, &mut |p| intern(p, roots, &mut rooted));
             }
-            walk_raw_tree(&si.tree, &mut |p| intern(p, roots, &mut rooted));
         }
     }
     for lk in &link_parses {
@@ -194,10 +196,16 @@ fn build_source(cl: &ClParse, alias_of: &dyn Fn(&str) -> String) -> Source {
         .collect();
 
     let (includes, included_files) = match &cl.includes {
-        Ok(si) => (
-            build_includes_map(&si.tree, alias_of),
-            si.included_files.iter().map(|p| alias_of(p)).collect(),
-        ),
+        Ok(si) => si
+            .translation_units
+            .first()
+            .map(|tu| {
+                (
+                    build_includes_map(&tu.tree, alias_of),
+                    tu.included_files.iter().map(|p| alias_of(p)).collect(),
+                )
+            })
+            .unwrap_or_else(|| (BTreeMap::new(), Vec::new())),
         Err(_) => (BTreeMap::new(), Vec::new()),
     };
 

@@ -147,12 +147,17 @@ when N = 1), so a clean split is possible.
   `sources: Vec<String>` in command-line order; update tokenizer
   and tests. Keep `other_switches` semantics intact for non-source
   positional tokens.
-- [ ] **CPP-4.6.3.** `cl_showincludes.rs`: parser takes the
-  cmdline source list and splits the message stream on
-  bare-basename boundary markers. Return per-TU trees in
-  command-line order. Detect orphan markers (no cmdline match)
-  and includes-before-first-marker as new diagnostic counters.
-  Update unit tests including a batch-mode case.
+- [x] **CPP-4.6.3.** `cl_showincludes.rs`: split the message
+  stream into per-TU [`TuIncludes`] entries on bare-basename
+  boundary markers (regex on the message line itself; no cmdline
+  coupling needed). Return per-TU trees in stream order with
+  `source_name` carrying the marker basename. Include lines
+  before any marker form an anonymous TU (`source_name: None`).
+  `malformed_message_count` is summed across all TUs. Unit tests
+  cover boundary recognition, batch-mode split, per-TU dedup,
+  depth-stack reset across markers, anonymous-then-named TU
+  separation, marker-only-no-includes TUs, and cross-TU malformed
+  accumulation.
 - [ ] **CPP-4.6.4.** `emit.rs`: emit one `Source` per cmdline
   source, joined to the corresponding TU by case-insensitive
   basename. Cmdline sources with no TU emit an empty include tree;

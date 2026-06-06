@@ -55,7 +55,9 @@ fn derive(command_line: &str, messages: &[&str], roots: &[Root]) -> Derived {
     // header in the include tree, all keyed through the rooted
     // representation.
     let mut all_paths: Vec<String> = vec![FIXTURE_PROJECT_PATH.to_string()];
-    all_paths.extend(includes.included_files.iter().cloned());
+    for tu in &includes.translation_units {
+        all_paths.extend(tu.included_files.iter().cloned());
+    }
 
     let mut rooted: std::collections::HashMap<String, RootedPath> =
         std::collections::HashMap::new();
@@ -138,33 +140,44 @@ fn baseline_chain_with_duplicate_include() {
     );
 
     // Include tree shape.
-    assert_eq!(d.includes.tree.len(), 2);
-    assert_eq!(d.includes.tree[0].resolved_path, r"C:\proj\include\a.h");
-    assert_eq!(d.includes.tree[0].children.len(), 1);
+    assert_eq!(d.includes.translation_units[0].tree.len(), 2);
     assert_eq!(
-        d.includes.tree[0].children[0].resolved_path,
+        d.includes.translation_units[0].tree[0].resolved_path,
+        r"C:\proj\include\a.h"
+    );
+    assert_eq!(d.includes.translation_units[0].tree[0].children.len(), 1);
+    assert_eq!(
+        d.includes.translation_units[0].tree[0].children[0].resolved_path,
         r"C:\proj\include\b.h"
     );
-    assert_eq!(d.includes.tree[0].children[0].children.len(), 1);
     assert_eq!(
-        d.includes.tree[0].children[0].children[0].resolved_path,
+        d.includes.translation_units[0].tree[0].children[0]
+            .children
+            .len(),
+        1
+    );
+    assert_eq!(
+        d.includes.translation_units[0].tree[0].children[0].children[0].resolved_path,
         r"C:\proj\include\c.h"
     );
-    assert_eq!(d.includes.tree[1].resolved_path, r"C:\proj\include\d.h");
-    assert_eq!(d.includes.tree[1].children.len(), 1);
     assert_eq!(
-        d.includes.tree[1].children[0].resolved_path,
+        d.includes.translation_units[0].tree[1].resolved_path,
+        r"C:\proj\include\d.h"
+    );
+    assert_eq!(d.includes.translation_units[0].tree[1].children.len(), 1);
+    assert_eq!(
+        d.includes.translation_units[0].tree[1].children[0].resolved_path,
         r"C:\proj\include\b.h"
     );
 
     // Duplicate b.h appears twice in the raw tree…
-    let resolved_all = flatten_resolved(&d.includes.tree);
+    let resolved_all = flatten_resolved(&d.includes.translation_units[0].tree);
     let b_in_tree = resolved_all.iter().filter(|p| p.ends_with("\\b.h")).count();
     assert_eq!(b_in_tree, 2);
 
     // …but exactly once in the flat list, in first-encounter order.
     assert_eq!(
-        d.includes.included_files,
+        d.includes.translation_units[0].included_files,
         vec![
             r"C:\proj\include\a.h",
             r"C:\proj\include\b.h",
@@ -175,20 +188,19 @@ fn baseline_chain_with_duplicate_include() {
 
     // Alias table covers every resolved header plus the project
     // file. Each path resolves to a unique alias.
-    for path in &d.includes.included_files {
+    for path in &d.includes.translation_units[0].included_files {
         let _ = alias_for_raw(&d, path);
     }
     let _ = alias_for_raw(&d, FIXTURE_PROJECT_PATH);
 
-    let alias_set: std::collections::HashSet<&str> = d
-        .includes
+    let alias_set: std::collections::HashSet<&str> = d.includes.translation_units[0]
         .included_files
         .iter()
         .map(|p| alias_for_raw(&d, p))
         .collect();
     assert_eq!(
         alias_set.len(),
-        d.includes.included_files.len(),
+        d.includes.translation_units[0].included_files.len(),
         "aliases must be unique across included files"
     );
     // Unique leaves → leaf-name aliases per D-CPP-ALIAS-1.
@@ -274,9 +286,8 @@ fn realistic_stdlib_chain_iostream_style() {
     assert_eq!(define_names, vec!["UNICODE", "_UNICODE", "NDEBUG"]);
 
     // Top-level shape: three depth-1 includes in source order.
-    assert_eq!(d.includes.tree.len(), 3);
-    let top: Vec<&str> = d
-        .includes
+    assert_eq!(d.includes.translation_units[0].tree.len(), 3);
+    let top: Vec<&str> = d.includes.translation_units[0]
         .tree
         .iter()
         .map(|n| n.resolved_path.as_str())
@@ -291,7 +302,7 @@ fn realistic_stdlib_chain_iostream_style() {
     );
 
     // The raw tree preserves duplicates structurally.
-    let resolved_all = flatten_resolved(&d.includes.tree);
+    let resolved_all = flatten_resolved(&d.includes.translation_units[0].tree);
     let vcrt_in_tree = resolved_all
         .iter()
         .filter(|p| p.ends_with("\\vcruntime.h"))
@@ -312,7 +323,7 @@ fn realistic_stdlib_chain_iostream_style() {
     );
 
     // The flat list deduplicates and is in first-encounter order.
-    let flat = &d.includes.included_files;
+    let flat = &d.includes.translation_units[0].included_files;
     let unique_count = flat.iter().collect::<std::collections::HashSet<_>>().len();
     assert_eq!(flat.len(), unique_count, "flat list must be deduplicated");
 

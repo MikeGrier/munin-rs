@@ -501,34 +501,42 @@ files appear on the command line. There is no separator between
 the last include of one TU and the next TU's boundary; nothing
 else appears between them in well-formed output.
 
-**Recognition.** A message line is a TU boundary marker iff its
-trimmed text equals (case-insensitive on Windows) the basename of
-**some source file present on the command line**. The cmdline list
-is required to make the rule robust: any other "looks like a
-filename" message (`foo.cpp` mentioned inside a warning, an MSBuild
-progress line, etc.) is not promoted to a boundary unless it
-matches a known source.
+**Recognition.** A message line is a TU boundary marker iff:
+
+- The line has no leading or embedded whitespace.
+- Every byte is ASCII alphanumeric or one of `_ . + -`.
+- The line ends (case-insensitive) with a recognized C/C++
+  source extension: `.c`, `.cc`, `.cpp`, `.cxx`, `.c++`.
+- The stem before the extension is non-empty.
+
+This is strict enough to never false-positive on a compiler
+diagnostic (which always contains spaces or quotes), an MSBuild
+progress line (which contains text like `"Building..."`), or an
+`Note: including file:` line (which starts with `Note: `). The
+parser does **not** need the cmdline source list to disambiguate;
+the regex alone is sufficient against real cl.exe output.
 
 **Per-TU split algorithm.**
 
-1. Tokenize the CL command line into the in-order list of source
-   files (D-CPP-CLCMDLINE1, multi-source variant).
-2. Build the set of source basenames (lower-cased on Windows).
-3. Walk the message stream:
-   - On a boundary marker: open a new TU keyed by the marker's
-     basename, matched against the cmdline source (preserving the
-     cmdline order); reset the depth path.
-   - On a `Note: including file:` line: append to the **currently
-     open** TU's tree (or bump `includes_before_first_marker_count`
-     if no TU is open yet).
-   - On any other message: ignore.
-4. Emit one `TuIncludes` per opened TU.
+1. Walk the message stream maintaining a `current_tu` index.
+2. On a boundary marker: open a new TU keyed by the marker
+   basename; reset the depth path.
+3. On a `Note: including file:` line: if no TU is open, open an
+   anonymous TU (`source_name: None`) and append; otherwise
+   append to the currently open TU.
+4. On any other message: ignore.
+5. After the walk, build each TU's `included_files` (flat dedup,
+   per-TU, in depth-first first-encounter order).
+
+Anonymous-leading TUs are rare; in well-formed batch-mode output
+the first message after build setup is always the first marker.
 
 **Schema invariance.** The on-the-wire schema (D-CPPSCHEMA-1) is
-**unchanged**. `Project::sources` was already `Vec<Source>`; we
-now emit one `Source` per cmdline source instead of one per CL
-task. Each `Source.path` is the alias of that cmdline source,
-matched to its per-TU `TuIncludes` by case-insensitive basename.
+**unchanged**. `Project::sources` was already `Vec<Source>`; the
+emitter will emit one `Source` per cmdline source instead of one
+per CL task (CPP-4.6.4). Each `Source.path` is the alias of that
+cmdline source, matched to its per-TU `TuIncludes` by
+case-insensitive basename.
 
 **Join rule (emitter).**
 
@@ -544,17 +552,11 @@ matched to its per-TU `TuIncludes` by case-insensitive basename.
   increments `orphan_marker_count`. This indicates either a
   cmdline-parser bug or a non-standard `cl.exe` invocation.
 
-**Diagnostics.** The parser returns two new counters in
-`ShowIncludes`:
-
-- `orphan_marker_count` — boundary-shaped lines that didn't match
-  any cmdline source. Always 0 in well-formed input.
-- `includes_before_first_marker_count` — `Note: including file:`
-  lines that appeared before any boundary marker. Always 0 in
-  well-formed input.
-
-`malformed_message_count` from D-CPP-SHOWINC-1 retains its meaning
-(depth-jump within a TU) and is summed across all TUs.
+**Diagnostics.** `malformed_message_count` from D-CPP-SHOWINC-1
+retains its meaning (depth-jump within a TU) and is summed across
+all TUs. No additional counters are needed in the v1 surface; the
+anonymous-TU representation captures the includes-before-marker
+case structurally rather than via a count.
 
 **Non-goals (v1).**
 
