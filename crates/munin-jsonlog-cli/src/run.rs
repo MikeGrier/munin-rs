@@ -48,8 +48,8 @@ fn run_analyze_cpp<S: OutputSink>(args: AnalyzeCppArgs, sink: &mut S) -> Result<
         .collect::<Result<Vec<_>, String>>()?;
 
     if args.auto_root
-        && let Some(r) =
-            munin_cppbuild::auto_detect_root(&index).map_err(|e| format!("auto-detect root: {e}"))?
+        && let Some(r) = munin_cppbuild::auto_detect_root(&index)
+            .map_err(|e| format!("auto-detect root: {e}"))?
     {
         roots.push(r);
     }

@@ -34,6 +34,7 @@ pub mod link_cmdline;
 pub mod link_verbose;
 pub mod path_root;
 pub mod schema;
+pub mod testkit;
 pub mod walk;
 
 pub use alias::AliasTable;

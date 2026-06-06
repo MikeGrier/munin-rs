@@ -180,7 +180,7 @@ when N = 1), so a clean split is possible.
   guard. Wire to `munin-cppbuild` library entry point.
 - [x] **CPP-5.2.** Update `munin-jsonlog-cli` README and add a usage
   example to `crates/munin-cppbuild/README.md`.
-- [ ] **CPP-5.3.** CLI roundtrip integration test against the M2/M3
+- [x] **CPP-5.3.** CLI roundtrip integration test against the M2/M3
   synthetic binlogs.
 - [ ] **CPP-5.4.** Env-var-gated test
   (`MUNIN_CPPBUILD_TEST_BINLOGS=<dir>`): iterate every `.binlog`,
