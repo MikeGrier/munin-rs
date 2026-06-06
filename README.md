@@ -42,7 +42,7 @@ crates/
     extension/                 # VS Code extension that bundles the binary
   munin-jsonlog-cli/           # munin-jsonlog CLI: binlog <-> jsonlog with redaction
 .github/
-  workflows/                   # ci, build-extension, release-please, publish-extension
+  workflows/                   # ci, build-extension, release-please, publish-extension, release-binaries
   actions/workspace-version/   # composite action that reads workspace version
 tools/
   check-encoding.ps1           # CI guard against encoding corruption
@@ -71,6 +71,31 @@ The MCP server binary is produced at `target/release/munin-binlog-mcp.exe`.
 See [`crates/munin-binlog-mcp/README.md`](crates/munin-binlog-mcp/README.md)
 for the tool reference and an `mcp.json` snippet that points VS Code at a
 local build.
+
+## Prebuilt binaries
+
+Every tagged release publishes standalone Windows binaries (no Rust
+toolchain required) for `x86_64-pc-windows-msvc` and
+`aarch64-pc-windows-msvc`:
+<https://github.com/MikeGrier/munin-rs/releases/latest>
+
+Each release attaches, per target:
+
+- `munin-rs-<target>-<version>.zip` — both binaries + `LICENSE` + a
+  short `README.txt`.
+- `munin-jsonlog-<target>-<version>.exe` — standalone CLI binary.
+- `munin-binlog-mcp-<target>-<version>.exe` — standalone MCP server.
+- `munin-rs-<target>-<version>.zip.sha256` — SHA-256 manifest for the
+  three files above.
+
+From another machine you can grab them with the GitHub CLI:
+
+```powershell
+gh release download --repo MikeGrier/munin-rs `
+    --pattern "munin-jsonlog-x86_64-pc-windows-msvc-*.exe"
+```
+
+or with PowerShell against the asset URL directly.
 
 ## VS Code extension
 
