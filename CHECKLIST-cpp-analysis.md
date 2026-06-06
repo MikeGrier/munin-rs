@@ -186,5 +186,5 @@ when N = 1), so a clean split is possible.
   (`MUNIN_CPPBUILD_TEST_BINLOGS=<dir>`): iterate every `.binlog`,
   run the pipeline, assert no errors and that emitted JSON
   validates against the schema. Skip cleanly when unset.
-- [ ] **CPP-5.5.** Update root `README.md` with a one-paragraph
+- [x] **CPP-5.5.** Update root `README.md` with a one-paragraph
   pointer to the new analysis subcommand.

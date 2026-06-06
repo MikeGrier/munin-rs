@@ -11,6 +11,7 @@ files.** It ships two crates and a VS Code extension:
 | Crate | What it is |
 |---|---|
 | [`munin-msbuild`](crates/munin-msbuild) | Reader and seekable indexed data model for `.binlog` files. |
+| [`munin-cppbuild`](crates/munin-cppbuild) | C++ build analysis: extracts per-project sources, defines, includes, and link inputs from `.vcxproj` binlogs. |
 | [`munin-binlog-mcp`](crates/munin-binlog-mcp) | MCP (Model Context Protocol) server that exposes binlog queries to AI agents like GitHub Copilot. |
 | [`munin-jsonlog-cli`](crates/munin-jsonlog-cli) | CLI (`munin-jsonlog`) for converting between `.binlog` and munin's `.jsonlog` format, with built-in redaction. |
 | [`Munin Binlog MCP` VS Code extension](crates/munin-binlog-mcp/extension) | Bundles the MCP server and registers it with VS Code automatically. |
@@ -18,11 +19,25 @@ files.** It ships two crates and a VS Code extension:
 The format itself is documented in the MSBuild repository:
 <https://github.com/dotnet/msbuild/blob/main/documentation/wiki/Binary-Log.md>
 
+### C++ build analysis
+
+For C++ (`.vcxproj`) builds captured with `cl.exe /showIncludes` and
+`link.exe /VERBOSE` enabled, the
+[`munin-jsonlog analyze-cpp`](crates/munin-jsonlog-cli) subcommand
+produces a structured JSON document describing every translation unit
+(command line, defines, include paths, resolved include tree, consumed
+headers) and every link invocation (command line, consumed inputs,
+dropped inputs) per project. See
+[`crates/munin-cppbuild`](crates/munin-cppbuild) for the library API
+and [`crates/munin-jsonlog-cli/README.md`](crates/munin-jsonlog-cli)
+for CLI usage.
+
 ## Repository layout
 
 ```
 crates/
   munin-msbuild/               # core .binlog reader + index (library)
+  munin-cppbuild/              # C++ build analysis (library)
   munin-binlog-mcp/            # MCP server binary + library
     extension/                 # VS Code extension that bundles the binary
   munin-jsonlog-cli/           # munin-jsonlog CLI: binlog <-> jsonlog with redaction
