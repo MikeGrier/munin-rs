@@ -163,8 +163,12 @@ fn parse_libpath_without_value_preserved_in_other() {
     // emit an empty entry.
     let c = parse(r"link.exe /LIBPATH: x.obj");
     assert!(
-        c.lib_paths.iter().any(|p| p.is_empty())
-            || c.other_switches.iter().any(|s| s == "/LIBPATH:")
+        c.lib_paths.is_empty(),
+        "empty-valued /LIBPATH: must not produce a lib_paths entry"
+    );
+    assert!(
+        c.other_switches.iter().any(|s| s == "/LIBPATH:"),
+        "/LIBPATH: must be preserved verbatim in other_switches"
     );
     assert_eq!(c.inputs, vec![obj("x.obj")]);
 }
@@ -173,11 +177,10 @@ fn parse_libpath_without_value_preserved_in_other() {
 fn parse_out_without_value_preserved_in_other() {
     // Bare `/OUT:` is malformed; keep verbatim, leave `output` None.
     let c = parse(r"link.exe /OUT: x.obj");
-    // We allow either: empty value captured, or preserved as other.
-    // Document the actual behavior in an assertion.
-    if let Some(o) = &c.output {
-        assert_eq!(o, "");
-    } else {
-        assert!(c.other_switches.iter().any(|s| s == "/OUT:"));
-    }
+    assert!(c.output.is_none(), "empty-valued /OUT: must not set output");
+    assert!(
+        c.other_switches.iter().any(|s| s == "/OUT:"),
+        "/OUT: must be preserved verbatim in other_switches"
+    );
+    assert_eq!(c.inputs, vec![obj("x.obj")]);
 }

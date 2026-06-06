@@ -20,11 +20,6 @@
 //!
 //! [`DESIGN-NOTES.md`]: https://github.com/MikeGrier/munin-rs/blob/main/crates/munin-cppbuild/DESIGN-NOTES.md
 
-// Modules are added in subsequent CHECKLIST items:
-// - CPP-1.2 schema
-// - CPP-1.3 path_root
-// - CPP-1.4 alias
-
 pub mod alias;
 pub mod analyze;
 pub mod cl_cmdline;

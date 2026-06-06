@@ -9,8 +9,6 @@
 //!
 //! See `DESIGN-NOTES.md` §D-CPPSCHEMA-1 for the document shape.
 
-use std::path::{Component, Path, PathBuf};
-
 use munin_msbuild::BinlogIndex;
 
 use crate::{
@@ -132,50 +130,71 @@ pub fn analyze(
 /// common ancestor (e.g. `C:\src\product` → `name = "product"`).
 pub fn auto_detect_root(index: &BinlogIndex) -> Result<Option<Root>, AnalyzeError> {
     let projects = walk_projects(index).map_err(|e| AnalyzeError::Walk(Box::new(e)))?;
-    let mut parents: Vec<PathBuf> = projects
+    let parents: Vec<String> = projects
         .iter()
         .filter_map(|p| p.project_file.as_deref())
-        .filter_map(|s| Path::new(s).parent().map(Path::to_path_buf))
+        .filter_map(parent_dir)
         .collect();
     if parents.is_empty() {
         return Ok(None);
     }
-    let mut common = parents.swap_remove(0);
-    for p in &parents {
+    let mut common = parents[0].clone();
+    for p in parents.iter().skip(1) {
         common = longest_common_prefix(&common, p);
-        if common.as_os_str().is_empty() {
+        if common.is_empty() {
             return Ok(None);
         }
     }
-    // Require at least one non-prefix component beyond the root
-    // (a bare drive letter or UNC share is not useful).
-    let component_count = common.components().count();
-    let has_only_prefix_or_root = common
-        .components()
-        .all(|c| matches!(c, Component::Prefix(_) | Component::RootDir));
-    if component_count <= 1 || has_only_prefix_or_root {
+    // Require at least one named directory beyond a drive letter or
+    // UNC root marker (a bare drive letter or `\\` is not useful).
+    let comps: Vec<&str> = split_components(&common).into_iter().collect();
+    let named: Vec<&str> = comps.iter().copied().filter(|c| !c.is_empty()).collect();
+    if named.is_empty() || (named.len() == 1 && is_drive_letter(named[0])) {
         return Ok(None);
     }
-    let name = common
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_else(|| "root".to_string());
-    Ok(Some(Root {
-        name,
-        path: common.to_string_lossy().into_owned(),
-    }))
+    let name = named.last().copied().unwrap_or("root").to_string();
+    Ok(Some(Root { name, path: common }))
 }
 
-fn longest_common_prefix(a: &Path, b: &Path) -> PathBuf {
-    let mut out = PathBuf::new();
-    for (ca, cb) in a.components().zip(b.components()) {
-        if ca == cb {
-            out.push(ca);
+/// Split a (possibly Windows-style) path into components on either
+/// `\` or `/`. The result preserves empty components produced by
+/// leading separators so that UNC paths (`\\server\share`) can still
+/// be recognized by callers.
+fn split_components(path: &str) -> Vec<&str> {
+    path.split(['\\', '/']).collect()
+}
+
+/// Return `true` iff `s` is a Windows drive-letter prefix (e.g.
+/// `C:`).
+fn is_drive_letter(s: &str) -> bool {
+    let bytes = s.as_bytes();
+    bytes.len() == 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':'
+}
+
+/// Return the parent directory of `path` as a string, treating `\`
+/// and `/` as separators regardless of host platform.
+fn parent_dir(path: &str) -> Option<String> {
+    let last = path.rfind(['\\', '/'])?;
+    Some(path[..last].to_string())
+}
+
+/// Compute the longest common path prefix of `a` and `b`, comparing
+/// components case-insensitively for ASCII (matching Windows volume
+/// / filesystem semantics for ASCII paths). Either `\` or `/` is
+/// accepted as a separator on input; the result is rejoined with
+/// `\` for Windows-native output.
+fn longest_common_prefix(a: &str, b: &str) -> String {
+    let ac = split_components(a);
+    let bc = split_components(b);
+    let mut common: Vec<&str> = Vec::new();
+    for (ca, cb) in ac.iter().zip(bc.iter()) {
+        if ca.eq_ignore_ascii_case(cb) {
+            common.push(ca);
         } else {
             break;
         }
     }
-    out
+    common.join("\\")
 }
 
 #[cfg(test)]

@@ -73,7 +73,11 @@ pub fn parse(command_line: &str) -> LinkCommandLine {
     for tok in &tokens {
         if let Some(body) = strip_switch_prefix(tok) {
             if let Some(value) = strip_named_value(body, "OUT") {
-                if out.output.is_none() {
+                if value.is_empty() {
+                    // Bare `/OUT:` is malformed — preserve verbatim
+                    // and leave `output` unset.
+                    out.other_switches.push(tok.clone());
+                } else if out.output.is_none() {
                     out.output = Some(unquote(value));
                 } else {
                     out.other_switches.push(tok.clone());
@@ -81,7 +85,13 @@ pub fn parse(command_line: &str) -> LinkCommandLine {
                 continue;
             }
             if let Some(value) = strip_named_value(body, "LIBPATH") {
-                out.lib_paths.push(unquote(value));
+                if value.is_empty() {
+                    // Bare `/LIBPATH:` is malformed — preserve
+                    // verbatim rather than emit an empty entry.
+                    out.other_switches.push(tok.clone());
+                } else {
+                    out.lib_paths.push(unquote(value));
+                }
                 continue;
             }
             out.other_switches.push(tok.clone());

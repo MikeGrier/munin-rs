@@ -226,7 +226,7 @@ it consumed — sourced from `cl.exe /showIncludes` and `link.exe
 - [x] **CPP-1.1.** Create `crates/munin-cppbuild/` library crate
   (`Cargo.toml`, `src/lib.rs`, `README.md`, `LICENSE`,
   `DESIGN-NOTES.md`). Wire into root `Cargo.toml` workspace.
-  Dependencies: `munin-msbuild`, `serde`, `serde_json`, `thiserror`.
+  Dependencies: `munin-msbuild`, `serde`, `serde_json`.
 - [x] **CPP-1.2.** Write the JSON schema in
   `crates/munin-cppbuild/DESIGN-NOTES.md` as **D-CPPSCHEMA-1**.
 - [x] **CPP-1.3.** Implement multi-root path canonicalizer in

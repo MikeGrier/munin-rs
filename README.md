@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 **Munin is a Rust toolkit for working with MSBuild binary log (`.binlog`)
-files.** It ships two crates and a VS Code extension:
+files.** It ships several crates and a VS Code extension:
 
 | Crate | What it is |
 |---|---|

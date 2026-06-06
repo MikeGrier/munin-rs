@@ -160,12 +160,17 @@ fn parse_root_arg(s: &str) -> Result<munin_cppbuild::Root, String> {
             path: path.to_string(),
         });
     }
-    let path = std::path::Path::new(s);
-    let name = path
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .filter(|n| !n.is_empty())
-        .ok_or_else(|| format!("--root {s}: cannot derive a name from path with no leaf"))?;
+    // Use a platform-independent splitter so Windows paths
+    // (`C:\src\product`) yield the expected leaf name when running
+    // the CLI on Linux as well.
+    let trimmed = s.trim_end_matches(['\\', '/']);
+    let leaf_start = trimmed.rfind(['\\', '/']).map(|i| i + 1).unwrap_or(0);
+    let name = trimmed[leaf_start..].to_string();
+    if name.is_empty() {
+        return Err(format!(
+            "--root {s}: cannot derive a name from path with no leaf"
+        ));
+    }
     Ok(munin_cppbuild::Root {
         name,
         path: s.to_string(),

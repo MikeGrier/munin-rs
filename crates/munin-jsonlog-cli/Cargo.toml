@@ -21,7 +21,7 @@ name = "munin-jsonlog"
 path = "src/main.rs"
 
 [dependencies]
-munin-msbuild = { path = "../munin-msbuild", version = "0.3.0" } # x-release-please-version
+munin-msbuild = { path = "../munin-msbuild", version = "0.3.1" } # x-release-please-version
 munin-cppbuild = { path = "../munin-cppbuild", version = "0.3.1" } # x-release-please-version
 clap = { version = "4", features = ["derive"] }
 serde_json = { workspace = true }
