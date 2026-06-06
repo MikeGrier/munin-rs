@@ -128,6 +128,45 @@ output captured in the binlog.
   with header chain `a.cpp → a.h → b.h → c.h` and a duplicate
   include; verify tree, flat list, aliases.
 
+## Milestone 4.5 — CL batch-mode support (CPP-4.6)
+
+Real-corpus verification of M3 surfaced a defect class: cl.exe is
+routinely invoked in **batch mode** with N source files in one
+command line (N ≥ 1). The current pipeline treats each CL task as a
+single TU, silently dropping all but the last source and merging all
+TUs' `/showIncludes` output into one bogus tree. cl.exe always emits
+a bare-basename TU-boundary marker before each TU's includes (even
+when N = 1), so a clean split is possible.
+
+- [x] **CPP-4.6.1.** Capture findings in `DESIGN-NOTES.md` as
+  D-CPP-SHOWINC2: batch-mode invariant, boundary-marker rule,
+  per-TU split algorithm, basename-join rule, and the
+  schema-invariance decision (one `Source` per cmdline source).
+- [ ] **CPP-4.6.2.** `cl_cmdline.rs`: replace
+  `ClCommandLine.source: Option<String>` with
+  `sources: Vec<String>` in command-line order; update tokenizer
+  and tests. Keep `other_switches` semantics intact for non-source
+  positional tokens.
+- [ ] **CPP-4.6.3.** `cl_showincludes.rs`: parser takes the
+  cmdline source list and splits the message stream on
+  bare-basename boundary markers. Return per-TU trees in
+  command-line order. Detect orphan markers (no cmdline match)
+  and includes-before-first-marker as new diagnostic counters.
+  Update unit tests including a batch-mode case.
+- [ ] **CPP-4.6.4.** `emit.rs`: emit one `Source` per cmdline
+  source, joined to the corresponding TU by case-insensitive
+  basename. Cmdline sources with no TU emit an empty include tree;
+  orphan TUs emit a `Source` with the marker basename and a
+  diagnostic. Update emit unit tests.
+- [ ] **CPP-4.6.5.** Integration test: synthetic batch-mode CL
+  binlog with three sources `a.cpp`, `b.cpp`, `c.cpp` (each with
+  distinct includes); assert three `Source` entries with correct
+  attribution and that no headers cross-contaminate between TUs.
+- [ ] **CPP-4.6.6.** Re-run `cl_pipeline_demo` against the real
+  corpus; confirm `AgentMonitoring` now reports 13 sources with
+  per-TU counts (not one bogus 1806-header source). Capture the
+  new output to `.scratch/cl_pipeline_demo_real_corpus.txt`.
+
 ## Milestone 5 — CLI surface and corpus harness
 
 - [ ] **CPP-5.1.** Add `analyze-cpp` (final name TBD) subcommand to

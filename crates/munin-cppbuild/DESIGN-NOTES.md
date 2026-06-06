@@ -33,6 +33,7 @@ milestones complete.
 | D-CPP-FIXTURE1 | Integration fixtures are synthesized programmatically, not checked in as binary `.binlog` files | §D-CPP-FIXTURE1 |
 | D-CPP-CLCMDLINE1 | `cl.exe` command-line tokenizer scope and limits | §D-CPP-CLCMDLINE1 |
 | D-CPP-SHOWINC-1 | `/showIncludes` parsing rules and non-English-locale detection | §D-CPP-SHOWINC-1 |
+| D-CPP-SHOWINC2 | CL batch mode: per-TU boundary marker, multi-source split | §D-CPP-SHOWINC2 |
 | D-CPP-LINK1 | `link.exe /VERBOSE` parsing rules and emission mapping | §D-CPP-LINK1 |
 
 Decisions are added here as milestones land:
@@ -50,6 +51,9 @@ Decisions are added here as milestones land:
   limits (CPP-3.2). _added._
 - **D-CPP-SHOWINC-1** — `/showIncludes` parsing rules and
   non-English-locale detection (CPP-3.3). _added._
+- **D-CPP-SHOWINC2** — CL batch-mode per-TU boundary marker and
+  multi-source split rule, discovered when real-corpus verification
+  surfaced a 13-source-in-one-task case (CPP-4.6.1). _added._
 - **D-CPP-LINK1** — `link /VERBOSE` parsing rules derived from the
   spike against the real binlog corpus (CPP-4.1). _added._
 
@@ -451,6 +455,124 @@ candidate follow-on if the alignment heuristic proves reliable.
 These limits make directive-text alignment a best-effort enrichment,
 not a primary key. The schema's resolved-path-aliased keys remain
 authoritative.
+
+---
+
+### D-CPP-SHOWINC2: CL batch mode and per-TU boundary markers
+
+Implementation lives in `src/cl_cmdline.rs` and
+`src/cl_showincludes.rs` (CPP-4.6 series). This section supersedes
+the implicit single-TU assumption left over from D-CPP-SHOWINC-1.
+
+**Discovery.** End-to-end verification of M3 against the real
+binlog corpus (CPP-4.6 spike, see
+`.scratch/cl-spike-samples/`) revealed that `cl.exe` is routinely
+invoked in **batch mode** with N source files on a single command
+line (N ≥ 1). The MSBuild CL task does not split these into N
+separate `Task` invocations — the entire batch runs under one
+`TaskStarted` / `TaskFinished` bracket with one `TaskCommandLine`
+event and one merged `/showIncludes` message stream.
+
+In the corpus, 1 of 3 binlogs had a 13-source batch
+(`AgentMonitoring`); the other 2 had 1-source CL tasks. The
+single-source case is just N=1 of the same batch shape — the
+boundary marker described below is emitted in **both** cases.
+
+**Boundary-marker rule.** Immediately before the
+`/showIncludes` output of each TU in the batch, `cl.exe` emits a
+single Message line containing only the **bare basename** of that
+TU's source file, at column 0, with no prefix or trailing
+punctuation. Example slice from a real 13-source CL task:
+
+```
+All source files are not up-to-date: missing command TLog "{0}".
+AgentEventObject.cpp                              ← TU 1 boundary
+Note: including file: ...AgentEventObject.h
+Note: including file:  ...RdCommon.h
+...
+Note: including file:      ...VmAuthUtil.h        ← last include of TU 1
+AgentMonitoring.cpp                               ← TU 2 boundary
+Note: including file: ...MonitoringAgentOutputChannel.h
+...
+```
+
+Boundary markers are emitted in the **same order** as the source
+files appear on the command line. There is no separator between
+the last include of one TU and the next TU's boundary; nothing
+else appears between them in well-formed output.
+
+**Recognition.** A message line is a TU boundary marker iff its
+trimmed text equals (case-insensitive on Windows) the basename of
+**some source file present on the command line**. The cmdline list
+is required to make the rule robust: any other "looks like a
+filename" message (`foo.cpp` mentioned inside a warning, an MSBuild
+progress line, etc.) is not promoted to a boundary unless it
+matches a known source.
+
+**Per-TU split algorithm.**
+
+1. Tokenize the CL command line into the in-order list of source
+   files (D-CPP-CLCMDLINE1, multi-source variant).
+2. Build the set of source basenames (lower-cased on Windows).
+3. Walk the message stream:
+   - On a boundary marker: open a new TU keyed by the marker's
+     basename, matched against the cmdline source (preserving the
+     cmdline order); reset the depth path.
+   - On a `Note: including file:` line: append to the **currently
+     open** TU's tree (or bump `includes_before_first_marker_count`
+     if no TU is open yet).
+   - On any other message: ignore.
+4. Emit one `TuIncludes` per opened TU.
+
+**Schema invariance.** The on-the-wire schema (D-CPPSCHEMA-1) is
+**unchanged**. `Project::sources` was already `Vec<Source>`; we
+now emit one `Source` per cmdline source instead of one per CL
+task. Each `Source.path` is the alias of that cmdline source,
+matched to its per-TU `TuIncludes` by case-insensitive basename.
+
+**Join rule (emitter).**
+
+- For each cmdline source, find the `TuIncludes` whose marker
+  basename matches case-insensitively; emit a `Source` carrying
+  that TU's tree and flat list.
+- A cmdline source with no matching marker emits a `Source` with
+  an empty tree and empty `included_files` — the TU produced no
+  includes (unusual but legal; e.g. `cl /c` on an `.obj`-only TU,
+  or a TU that errored out before any includes were resolved).
+- An orphan marker (no matching cmdline source) emits an extra
+  `Source` whose `path` is the alias of the bare basename and
+  increments `orphan_marker_count`. This indicates either a
+  cmdline-parser bug or a non-standard `cl.exe` invocation.
+
+**Diagnostics.** The parser returns two new counters in
+`ShowIncludes`:
+
+- `orphan_marker_count` — boundary-shaped lines that didn't match
+  any cmdline source. Always 0 in well-formed input.
+- `includes_before_first_marker_count` — `Note: including file:`
+  lines that appeared before any boundary marker. Always 0 in
+  well-formed input.
+
+`malformed_message_count` from D-CPP-SHOWINC-1 retains its meaning
+(depth-jump within a TU) and is summed across all TUs.
+
+**Non-goals (v1).**
+
+- **No `/MP` (parallel) ordering recovery.** `cl /MP` may
+  interleave TUs from worker processes; in that case
+  `includes_before_first_marker_count` will be non-zero and the
+  TUs will look chaotic. The parser does not attempt to
+  re-sequence them; the binlog itself records messages in arrival
+  order. If `/MP` proves common in the corpus, M5 may add a
+  diagnostic-only flag.
+- **No support for `@response.rsp` source files.** Sources listed
+  inside a response file are not currently extracted (response
+  files are preserved verbatim in `other_switches`). The boundary
+  markers will still appear, and orphan markers will surface them
+  — that's the v1 escape hatch.
+- **No PCH-specific handling.** Precompiled-header creation
+  (`/Yc`) and consumption (`/Yu`) both still emit `/showIncludes`
+  output normally; PCH metadata enrichment is a follow-on.
 
 ---
 
