@@ -5,7 +5,7 @@
 use std::{
     fs::File,
     io::{BufReader, BufWriter, Write},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use munin_msbuild::{BinlogIndex, jsonlog};
@@ -27,32 +27,47 @@ pub fn dispatch<S: OutputSink>(cli: Cli, sink: &mut S) -> Result<(), String> {
 }
 
 fn run_dump<S: OutputSink>(args: DumpArgs, sink: &mut S) -> Result<(), String> {
-    let index = load_and_redact_binlog(&args.input, &args.redact)?;
-    write_jsonlog(&index, args.output.as_deref(), args.pretty, sink)
+    let inputs = expand_inputs(&args.input)?;
+    let plan = OutputPlan::resolve(&inputs, args.output.as_deref(), "jsonlog")?;
+
+    for (input, target) in inputs.iter().zip(plan.targets.iter()) {
+        let index = load_and_redact_binlog(input, &args.redact)?;
+        let mut bytes = Vec::new();
+        if args.pretty {
+            jsonlog::dump_index_pretty(&index, &mut bytes)
+                .map_err(|e| format!("encode jsonlog: {e}"))?;
+        } else {
+            jsonlog::dump_index(&index, &mut bytes).map_err(|e| format!("encode jsonlog: {e}"))?;
+        }
+        write_output(target.as_deref(), &bytes, sink)?;
+    }
+    Ok(())
 }
 
 fn run_pack<S: OutputSink>(args: PackArgs, sink: &mut S) -> Result<(), String> {
-    let index = load_and_redact_jsonlog(&args.input, &args.redact)?;
-    write_binlog(&index, args.output.as_deref(), sink)
+    let inputs = expand_inputs(&args.input)?;
+    let plan = OutputPlan::resolve(&inputs, args.output.as_deref(), "binlog")?;
+
+    for (input, target) in inputs.iter().zip(plan.targets.iter()) {
+        let index = load_and_redact_jsonlog(input, &args.redact)?;
+        let mut bytes = Vec::new();
+        index
+            .write_binlog(&mut bytes)
+            .map_err(|e| format!("encode binlog: {e}"))?;
+        write_output(target.as_deref(), &bytes, sink)?;
+    }
+    Ok(())
 }
 
 fn run_analyze_cpp<S: OutputSink>(args: AnalyzeCppArgs, sink: &mut S) -> Result<(), String> {
-    let f = File::open(&args.input).map_err(|e| format!("open {}: {e}", args.input.display()))?;
-    let index = BinlogIndex::open(BufReader::new(f))
-        .map_err(|e| format!("read binlog {}: {e}", args.input.display()))?;
+    let inputs = expand_inputs(&args.input)?;
+    let plan = OutputPlan::resolve(&inputs, args.output.as_deref(), "cpp.json")?;
 
-    let mut roots: Vec<munin_cppbuild::Root> = args
+    let explicit_roots: Vec<munin_cppbuild::Root> = args
         .root
         .iter()
         .map(|s| parse_root_arg(s))
         .collect::<Result<Vec<_>, String>>()?;
-
-    if args.auto_root
-        && let Some(r) = munin_cppbuild::auto_detect_root(&index)
-            .map_err(|e| format!("auto-detect root: {e}"))?
-    {
-        roots.push(r);
-    }
 
     let strategy = if args.locale_strict {
         munin_cppbuild::LocaleStrategy::Strict
@@ -60,19 +75,34 @@ fn run_analyze_cpp<S: OutputSink>(args: AnalyzeCppArgs, sink: &mut S) -> Result<
         munin_cppbuild::LocaleStrategy::BestEffort
     };
 
-    let source_binlog = args.input.display().to_string();
-    let doc = munin_cppbuild::analyze(&index, &source_binlog, &roots, strategy)
-        .map_err(|e| format!("analyze {}: {e}", args.input.display()))?;
+    for (input, target) in inputs.iter().zip(plan.targets.iter()) {
+        let f = File::open(input).map_err(|e| format!("open {}: {e}", input.display()))?;
+        let index = BinlogIndex::open(BufReader::new(f))
+            .map_err(|e| format!("read binlog {}: {e}", input.display()))?;
 
-    let mut bytes = if args.pretty {
-        serde_json::to_vec_pretty(&doc)
-    } else {
-        serde_json::to_vec(&doc)
+        let mut roots = explicit_roots.clone();
+        if args.auto_root
+            && let Some(r) = munin_cppbuild::auto_detect_root(&index)
+                .map_err(|e| format!("auto-detect root: {e}"))?
+        {
+            roots.push(r);
+        }
+
+        let source_binlog = input.display().to_string();
+        let doc = munin_cppbuild::analyze(&index, &source_binlog, &roots, strategy)
+            .map_err(|e| format!("analyze {}: {e}", input.display()))?;
+
+        let mut bytes = if args.pretty {
+            serde_json::to_vec_pretty(&doc)
+        } else {
+            serde_json::to_vec(&doc)
+        }
+        .map_err(|e| format!("encode CppBuildAnalysis: {e}"))?;
+        bytes.push(b'\n');
+
+        write_output(target.as_deref(), &bytes, sink)?;
     }
-    .map_err(|e| format!("encode CppBuildAnalysis: {e}"))?;
-    bytes.push(b'\n');
-
-    write_output(args.output.as_deref(), &bytes, sink)
+    Ok(())
 }
 
 /// Parse `--root` argument: accepts `NAME=PATH` or bare `PATH`.
@@ -102,17 +132,6 @@ fn parse_root_arg(s: &str) -> Result<munin_cppbuild::Root, String> {
     })
 }
 
-fn load_and_redact_binlog(input: &Path, redact: &RedactArgs) -> Result<BinlogIndex, String> {
-    let f = File::open(input).map_err(|e| format!("open {}: {e}", input.display()))?;
-    let mut index = BinlogIndex::open(BufReader::new(f))
-        .map_err(|e| format!("read binlog {}: {e}", input.display()))?;
-    if redact_args::is_active(redact) {
-        let r = redact_args::build_redactor(redact)?;
-        r.apply(&mut index);
-    }
-    Ok(index)
-}
-
 fn load_and_redact_jsonlog(input: &Path, redact: &RedactArgs) -> Result<BinlogIndex, String> {
     let f = File::open(input).map_err(|e| format!("open {}: {e}", input.display()))?;
     let mut index = BinlogIndex::open_json(BufReader::new(f))
@@ -124,32 +143,94 @@ fn load_and_redact_jsonlog(input: &Path, redact: &RedactArgs) -> Result<BinlogIn
     Ok(index)
 }
 
-fn write_jsonlog<S: OutputSink>(
-    index: &BinlogIndex,
-    output: Option<&Path>,
-    pretty: bool,
-    sink: &mut S,
-) -> Result<(), String> {
-    let mut bytes = Vec::new();
-    if pretty {
-        jsonlog::dump_index_pretty(index, &mut bytes)
-            .map_err(|e| format!("encode jsonlog: {e}"))?;
-    } else {
-        jsonlog::dump_index(index, &mut bytes).map_err(|e| format!("encode jsonlog: {e}"))?;
+/// Expand each input pattern into one or more file paths.
+///
+/// Patterns containing `*`, `?`, or `[` are passed to the `glob`
+/// crate (which supports `**` for recursive descent); other inputs
+/// are treated as literal paths and must exist. A glob that matches
+/// no files is an error.
+fn expand_inputs(patterns: &[String]) -> Result<Vec<PathBuf>, String> {
+    let mut out = Vec::new();
+    for pat in patterns {
+        if pat.contains('*') || pat.contains('?') || pat.contains('[') {
+            let matches = glob::glob(pat).map_err(|e| format!("invalid glob {pat:?}: {e}"))?;
+            let before = out.len();
+            for m in matches {
+                let p = m.map_err(|e| format!("glob {pat:?}: {e}"))?;
+                if p.is_file() {
+                    out.push(p);
+                }
+            }
+            if out.len() == before {
+                return Err(format!("glob {pat:?} matched no files"));
+            }
+        } else {
+            let p = PathBuf::from(pat);
+            if !p.exists() {
+                return Err(format!("input {} does not exist", p.display()));
+            }
+            out.push(p);
+        }
     }
-    write_output(output, &bytes, sink)
+    Ok(out)
 }
 
-fn write_binlog<S: OutputSink>(
-    index: &BinlogIndex,
-    output: Option<&Path>,
-    sink: &mut S,
-) -> Result<(), String> {
-    let mut bytes = Vec::new();
-    index
-        .write_binlog(&mut bytes)
-        .map_err(|e| format!("encode binlog: {e}"))?;
-    write_output(output, &bytes, sink)
+/// Resolves the per-input output target for a batch of inputs.
+#[derive(Debug)]
+struct OutputPlan {
+    /// One entry per input. `None` means stdout (only possible when
+    /// `inputs.len() == 1` and no `--output` was given).
+    targets: Vec<Option<PathBuf>>,
+}
+
+impl OutputPlan {
+    fn resolve(
+        inputs: &[PathBuf],
+        output: Option<&Path>,
+        out_extension: &str,
+    ) -> Result<Self, String> {
+        match (inputs.len(), output) {
+            (0, _) => Err("no input files".to_string()),
+            (1, out) => Ok(Self {
+                targets: vec![out.map(PathBuf::from)],
+            }),
+            (_, None) => Ok(Self {
+                targets: inputs
+                    .iter()
+                    .map(|p| Some(p.with_extension(out_extension)))
+                    .collect(),
+            }),
+            (_, Some(dir)) => {
+                if !dir.is_dir() {
+                    return Err(format!(
+                        "--output {} must be an existing directory when multiple inputs are given",
+                        dir.display()
+                    ));
+                }
+                let mut targets = Vec::with_capacity(inputs.len());
+                for input in inputs {
+                    let name = input.file_stem().ok_or_else(|| {
+                        format!("cannot derive output name from {}", input.display())
+                    })?;
+                    let mut fname = PathBuf::from(name);
+                    fname.set_extension(out_extension);
+                    targets.push(Some(dir.join(fname)));
+                }
+                Ok(Self { targets })
+            }
+        }
+    }
+}
+
+fn load_and_redact_binlog(input: &Path, redact: &RedactArgs) -> Result<BinlogIndex, String> {
+    let f = File::open(input).map_err(|e| format!("open {}: {e}", input.display()))?;
+    let mut index = BinlogIndex::open(BufReader::new(f))
+        .map_err(|e| format!("read binlog {}: {e}", input.display()))?;
+    if redact_args::is_active(redact) {
+        let r = redact_args::build_redactor(redact)?;
+        r.apply(&mut index);
+    }
+    Ok(index)
 }
 
 fn write_output<S: OutputSink>(
@@ -177,6 +258,8 @@ fn write_output<S: OutputSink>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use tempfile::tempdir;
 
     #[test]
     fn parse_root_arg_name_equals_path() {
@@ -202,5 +285,108 @@ mod tests {
     fn parse_root_arg_empty_path_errors() {
         let err = parse_root_arg("name=").unwrap_err();
         assert!(err.contains("path after '=' must not be empty"));
+    }
+
+    #[test]
+    fn expand_inputs_literal_path_passthrough() {
+        let tmp = tempdir().unwrap();
+        let p = tmp.path().join("a.binlog");
+        fs::write(&p, b"x").unwrap();
+        let out = expand_inputs(&[p.display().to_string()]).unwrap();
+        assert_eq!(out, vec![p]);
+    }
+
+    #[test]
+    fn expand_inputs_literal_missing_path_errors() {
+        let err = expand_inputs(&["definitely_missing_file.binlog".to_string()]).unwrap_err();
+        assert!(err.contains("does not exist"), "got: {err}");
+    }
+
+    #[test]
+    fn expand_inputs_glob_matches_files() {
+        let tmp = tempdir().unwrap();
+        for name in ["a.binlog", "b.binlog", "c.txt"] {
+            fs::write(tmp.path().join(name), b"x").unwrap();
+        }
+        let pat = tmp.path().join("*.binlog").display().to_string();
+        let mut out = expand_inputs(&[pat]).unwrap();
+        out.sort();
+        assert_eq!(out.len(), 2);
+        assert!(out[0].ends_with("a.binlog"));
+        assert!(out[1].ends_with("b.binlog"));
+    }
+
+    #[test]
+    fn expand_inputs_recursive_glob_descends() {
+        let tmp = tempdir().unwrap();
+        let sub = tmp.path().join("deep").join("nested");
+        fs::create_dir_all(&sub).unwrap();
+        fs::write(tmp.path().join("top.binlog"), b"x").unwrap();
+        fs::write(sub.join("inner.binlog"), b"x").unwrap();
+        let pat = format!("{}/**/*.binlog", tmp.path().display());
+        let out = expand_inputs(&[pat]).unwrap();
+        assert_eq!(out.len(), 2, "got: {out:?}");
+    }
+
+    #[test]
+    fn expand_inputs_unmatched_glob_errors() {
+        let tmp = tempdir().unwrap();
+        let pat = tmp.path().join("*.nope").display().to_string();
+        let err = expand_inputs(&[pat]).unwrap_err();
+        assert!(err.contains("matched no files"), "got: {err}");
+    }
+
+    #[test]
+    fn output_plan_single_input_no_output_is_stdout() {
+        let plan = OutputPlan::resolve(&[PathBuf::from("a.binlog")], None, "jsonlog").unwrap();
+        assert_eq!(plan.targets, vec![None]);
+    }
+
+    #[test]
+    fn output_plan_single_input_with_output_uses_path() {
+        let plan = OutputPlan::resolve(
+            &[PathBuf::from("a.binlog")],
+            Some(Path::new("out.jsonlog")),
+            "jsonlog",
+        )
+        .unwrap();
+        assert_eq!(plan.targets, vec![Some(PathBuf::from("out.jsonlog"))]);
+    }
+
+    #[test]
+    fn output_plan_multi_input_no_output_writes_alongside() {
+        let inputs = vec![PathBuf::from("a.binlog"), PathBuf::from("dir/b.binlog")];
+        let plan = OutputPlan::resolve(&inputs, None, "jsonlog").unwrap();
+        assert_eq!(
+            plan.targets,
+            vec![
+                Some(PathBuf::from("a.jsonlog")),
+                Some(PathBuf::from("dir/b.jsonlog")),
+            ]
+        );
+    }
+
+    #[test]
+    fn output_plan_multi_input_with_dir_routes_to_dir() {
+        let tmp = tempdir().unwrap();
+        let inputs = vec![PathBuf::from("a.binlog"), PathBuf::from("sub/b.binlog")];
+        let plan = OutputPlan::resolve(&inputs, Some(tmp.path()), "cpp.json").unwrap();
+        assert_eq!(
+            plan.targets,
+            vec![
+                Some(tmp.path().join("a.cpp.json")),
+                Some(tmp.path().join("b.cpp.json")),
+            ]
+        );
+    }
+
+    #[test]
+    fn output_plan_multi_input_with_file_output_errors() {
+        let tmp = tempdir().unwrap();
+        let not_a_dir = tmp.path().join("out.json");
+        fs::write(&not_a_dir, b"x").unwrap();
+        let inputs = vec![PathBuf::from("a.binlog"), PathBuf::from("b.binlog")];
+        let err = OutputPlan::resolve(&inputs, Some(&not_a_dir), "cpp.json").unwrap_err();
+        assert!(err.contains("must be an existing directory"), "got: {err}");
     }
 }

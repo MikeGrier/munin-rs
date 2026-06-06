@@ -51,11 +51,19 @@ pub struct RedactArgs {
 /// `dump` subcommand: `.binlog` → `.jsonlog`.
 #[derive(Debug, clap::Args)]
 pub struct DumpArgs {
-    /// Path to the input `.binlog`.
-    pub input: std::path::PathBuf,
+    /// One or more input `.binlog` paths or glob patterns. Patterns
+    /// containing `*`, `?`, or `[` are expanded; `**` recurses into
+    /// subdirectories. A pattern that matches no files is an error.
+    #[arg(required = true, value_name = "INPUT")]
+    pub input: Vec<String>,
 
-    /// Output path. Defaults to stdout when omitted.
-    #[arg(short = 'o', long = "output", value_name = "FILE")]
+    /// Output destination.
+    ///
+    /// - With a single input: file path, or stdout when omitted.
+    /// - With multiple inputs: an existing directory that receives
+    ///   one `<stem>.jsonlog` per input. When omitted, outputs are
+    ///   written next to each input.
+    #[arg(short = 'o', long = "output", value_name = "FILE|DIR")]
     pub output: Option<std::path::PathBuf>,
 
     /// Pretty-print the jsonlog output.
@@ -69,11 +77,19 @@ pub struct DumpArgs {
 /// `pack` subcommand: `.jsonlog` → `.binlog`.
 #[derive(Debug, clap::Args)]
 pub struct PackArgs {
-    /// Path to the input `.jsonlog`.
-    pub input: std::path::PathBuf,
+    /// One or more input `.jsonlog` paths or glob patterns. Patterns
+    /// containing `*`, `?`, or `[` are expanded; `**` recurses into
+    /// subdirectories. A pattern that matches no files is an error.
+    #[arg(required = true, value_name = "INPUT")]
+    pub input: Vec<String>,
 
-    /// Output path. Defaults to stdout when omitted.
-    #[arg(short = 'o', long = "output", value_name = "FILE")]
+    /// Output destination.
+    ///
+    /// - With a single input: file path, or stdout when omitted.
+    /// - With multiple inputs: an existing directory that receives
+    ///   one `<stem>.binlog` per input. When omitted, outputs are
+    ///   written next to each input.
+    #[arg(short = 'o', long = "output", value_name = "FILE|DIR")]
     pub output: Option<std::path::PathBuf>,
 
     #[command(flatten)]
@@ -83,11 +99,19 @@ pub struct PackArgs {
 /// `analyze-cpp` subcommand: `.binlog` → `CppBuildAnalysis` JSON.
 #[derive(Debug, clap::Args)]
 pub struct AnalyzeCppArgs {
-    /// Path to the input `.binlog`.
-    pub input: std::path::PathBuf,
+    /// One or more input `.binlog` paths or glob patterns. Patterns
+    /// containing `*`, `?`, or `[` are expanded; `**` recurses into
+    /// subdirectories. A pattern that matches no files is an error.
+    #[arg(required = true, value_name = "INPUT")]
+    pub input: Vec<String>,
 
-    /// Output path. Defaults to stdout when omitted.
-    #[arg(short = 'o', long = "output", value_name = "FILE")]
+    /// Output destination.
+    ///
+    /// - With a single input: file path, or stdout when omitted.
+    /// - With multiple inputs: an existing directory that receives
+    ///   one `<stem>.cpp.json` per input. When omitted, outputs are
+    ///   written next to each input.
+    #[arg(short = 'o', long = "output", value_name = "FILE|DIR")]
     pub output: Option<std::path::PathBuf>,
 
     /// Path-root entry. Repeatable. Two forms are accepted:

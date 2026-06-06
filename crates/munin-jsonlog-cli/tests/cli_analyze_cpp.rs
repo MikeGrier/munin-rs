@@ -134,3 +134,42 @@ fn analyze_cpp_named_root_appears_in_header() {
     assert_eq!(roots[0]["name"], "product");
     assert_eq!(roots[0]["path"], r"C:\src\product");
 }
+
+#[test]
+fn analyze_cpp_glob_expands_recursively_and_writes_per_input() {
+    let tmp = tempdir().expect("tempdir");
+    let out_dir = tmp.path().join("out");
+    fs::create_dir(&out_dir).unwrap();
+
+    // Two binlogs at different depths under tmp.
+    let top_dir = tmp.path().join("top");
+    let nested_dir = tmp.path().join("deep").join("nested");
+    fs::create_dir_all(&top_dir).unwrap();
+    fs::create_dir_all(&nested_dir).unwrap();
+    let top = top_dir.join("alpha.binlog");
+    let nested = nested_dir.join("beta.binlog");
+    fs::write(&top, synthetic_cl_task_binlog(CL_COMMAND, CL_MESSAGES)).unwrap();
+    fs::write(&nested, synthetic_cl_task_binlog(CL_COMMAND, CL_MESSAGES)).unwrap();
+
+    let pattern = format!("{}/**/*.binlog", tmp.path().display());
+
+    Command::cargo_bin("munin-jsonlog")
+        .expect("locate munin-jsonlog binary")
+        .arg("analyze-cpp")
+        .arg(&pattern)
+        .arg("-o")
+        .arg(&out_dir)
+        .assert()
+        .success();
+
+    let alpha_out = out_dir.join("alpha.cpp.json");
+    let beta_out = out_dir.join("beta.cpp.json");
+    assert!(alpha_out.is_file(), "missing {}", alpha_out.display());
+    assert!(beta_out.is_file(), "missing {}", beta_out.display());
+
+    for p in [alpha_out, beta_out] {
+        let doc: serde_json::Value =
+            serde_json::from_slice(&fs::read(&p).unwrap()).expect("valid JSON");
+        assert_eq!(doc["schema_version"], 1, "{}: bad schema", p.display());
+    }
+}
