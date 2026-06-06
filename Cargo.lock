@@ -351,7 +351,9 @@ version = "0.3.1"
 dependencies = [
  "assert_cmd",
  "clap",
+ "munin-cppbuild",
  "munin-msbuild",
+ "serde_json",
  "tempfile",
 ]
 

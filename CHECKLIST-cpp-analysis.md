@@ -174,7 +174,7 @@ when N = 1), so a clean split is possible.
 
 ## Milestone 5 — CLI surface and corpus harness
 
-- [ ] **CPP-5.1.** Add `analyze-cpp` (final name TBD) subcommand to
+- [x] **CPP-5.1.** Add `analyze-cpp` (final name TBD) subcommand to
   `munin-jsonlog-cli`: `input` (binlog), `--output / -o`,
   `--root <dir>` (repeatable), `--auto-root`, `--pretty`, `--locale`
   guard. Wire to `munin-cppbuild` library entry point.

@@ -20,6 +20,9 @@ pub enum Command {
     Dump(DumpArgs),
     /// Read a `.jsonlog`, optionally redact, and write a `.binlog`.
     Pack(PackArgs),
+    /// Read a C++ `.binlog`, run the `munin-cppbuild` pipeline, and
+    /// write a `CppBuildAnalysis` JSON document.
+    AnalyzeCpp(AnalyzeCppArgs),
 }
 
 /// Shared redaction flags for `dump` and `pack`.
@@ -75,4 +78,40 @@ pub struct PackArgs {
 
     #[command(flatten)]
     pub redact: RedactArgs,
+}
+
+/// `analyze-cpp` subcommand: `.binlog` → `CppBuildAnalysis` JSON.
+#[derive(Debug, clap::Args)]
+pub struct AnalyzeCppArgs {
+    /// Path to the input `.binlog`.
+    pub input: std::path::PathBuf,
+
+    /// Output path. Defaults to stdout when omitted.
+    #[arg(short = 'o', long = "output", value_name = "FILE")]
+    pub output: Option<std::path::PathBuf>,
+
+    /// Path-root entry. Repeatable. Two forms are accepted:
+    ///
+    /// - `NAME=PATH` — root named `NAME` pointing at `PATH`.
+    /// - `PATH` — root named after the leaf component of `PATH`.
+    #[arg(long = "root", value_name = "[NAME=]PATH")]
+    pub root: Vec<String>,
+
+    /// Auto-detect a single root from the longest common parent
+    /// directory of every project file in the binlog. Appended to
+    /// any `--root` entries supplied explicitly. No-op when the
+    /// binlog has no projects or the only common prefix is a drive
+    /// letter / UNC share.
+    #[arg(long = "auto-root")]
+    pub auto_root: bool,
+
+    /// Pretty-print the JSON output.
+    #[arg(long)]
+    pub pretty: bool,
+
+    /// Fail the command if any CL task's `/showIncludes` stream is
+    /// in a locale the parser does not understand. Default: emit
+    /// an empty include tree for unsupported locales (best-effort).
+    #[arg(long = "locale-strict")]
+    pub locale_strict: bool,
 }

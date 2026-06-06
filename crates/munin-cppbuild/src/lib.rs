@@ -26,6 +26,7 @@
 // - CPP-1.4 alias
 
 pub mod alias;
+pub mod analyze;
 pub mod cl_cmdline;
 pub mod cl_showincludes;
 pub mod emit;
@@ -36,6 +37,7 @@ pub mod schema;
 pub mod walk;
 
 pub use alias::AliasTable;
+pub use analyze::{AnalyzeError, LocaleStrategy, analyze, auto_detect_root};
 pub use cl_cmdline::{ClCommandLine, parse as parse_cl_command_line};
 pub use cl_showincludes::{
     LocaleNotSupportedError, RawIncludeNode, ShowIncludes, parse as parse_cl_show_includes,
