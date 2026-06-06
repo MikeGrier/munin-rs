@@ -26,3 +26,35 @@ roadmap.
 A `munin-jsonlog` subcommand wraps this library to convert a binlog into
 a C++ analysis JSON document directly. See
 [`munin-jsonlog-cli`](../munin-jsonlog-cli).
+
+## Library usage
+
+```rust
+use std::fs::File;
+use std::io::BufReader;
+use munin_msbuild::BinlogIndex;
+use munin_cppbuild::{analyze, auto_detect_root, LocaleStrategy};
+
+let f = File::open("build.binlog")?;
+let index = BinlogIndex::open(BufReader::new(f))?;
+
+let mut roots = Vec::new();
+if let Some(r) = auto_detect_root(&index)? {
+    roots.push(r);
+}
+
+let doc = analyze(
+    &index,
+    "build.binlog",
+    &roots,
+    LocaleStrategy::BestEffort,
+)?;
+
+let json = serde_json::to_string_pretty(&doc)?;
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+`LocaleStrategy::BestEffort` skips translation units whose
+`/showIncludes` output cannot be parsed (typically non-English
+compiler locales); `LocaleStrategy::Strict` returns an error
+instead.
