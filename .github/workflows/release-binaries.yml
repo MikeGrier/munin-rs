@@ -1,0 +1,192 @@
+# Copyright (c) Michael Grier
+name: release-binaries
+
+# Build and publish standalone Windows binaries (munin-jsonlog,
+# munin-binlog-mcp) for each supported Rust target on every v* tag push,
+# and attach them to the GitHub Release that release-please already
+# created for that tag.
+#
+# Trigger:
+#   - Pushing a tag matching `v*` (e.g. `v0.4.0`); created automatically
+#     by release-please when the Release PR is merged.
+#   - `workflow_dispatch` for manual rehearsal. On a workflow_dispatch
+#     run the binaries are uploaded as workflow artifacts only; nothing
+#     is published to a GitHub Release.
+#
+# Outputs (per matrix leg, attached to the GitHub Release on tag push):
+#   - munin-rs-<rust_target>-<version>.zip
+#       contains both .exe files, the repository LICENSE, and a top-level
+#       README.txt with install / usage notes.
+#   - munin-jsonlog-<rust_target>-<version>.exe
+#   - munin-binlog-mcp-<rust_target>-<version>.exe
+#   - munin-rs-<rust_target>-<version>.zip.sha256 (one line per file)
+#
+# To download from another machine:
+#   - Web:     https://github.com/MikeGrier/munin-rs/releases/latest
+#   - CLI:     gh release download v0.4.0 -p '*-x86_64-pc-windows-msvc-*.zip'
+#   - Or any browser / Invoke-WebRequest against the release asset URL.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed to upload assets to the GitHub Release
+
+# Opt every JavaScript-action step into the Node.js 24 runtime ahead of
+# GitHub's June 2, 2026 forced cutover.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  build:
+    name: build (${{ matrix.rust_target }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - rust_target: x86_64-pc-windows-msvc
+          - rust_target: aarch64-pc-windows-msvc
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust toolchain (${{ matrix.rust_target }})
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: release-binaries-${{ matrix.rust_target }}
+
+      - name: cargo build --release (jsonlog-cli + binlog-mcp)
+        run: cargo build --release -p munin-jsonlog-cli -p munin-binlog-mcp --target ${{ matrix.rust_target }} --locked
+
+      - name: cargo test (host arch only)
+        if: matrix.rust_target == 'x86_64-pc-windows-msvc'
+        run: cargo test -p munin-jsonlog-cli -p munin-binlog-mcp --target ${{ matrix.rust_target }} --locked
+
+      - name: Read workspace version
+        id: workspace-version
+        uses: ./.github/actions/workspace-version
+
+      - name: Cross-check tag vs workspace version
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        env:
+          WORKSPACE_VERSION: ${{ steps.workspace-version.outputs.version }}
+        run: |
+          $ver = $env:WORKSPACE_VERSION
+          $tag = "${{ github.ref_name }}"
+          if ($tag -like "v*") {
+              $tagVer = $tag.Substring("v".Length)
+              if ($tagVer -ne $ver) {
+                  throw "Tag '$tag' implies version '$tagVer' but Cargo.toml has '$ver'. Retag after a release-please run, then retry."
+              }
+          }
+
+      - name: Stage release artifacts
+        id: stage
+        shell: pwsh
+        env:
+          WORKSPACE_VERSION: ${{ steps.workspace-version.outputs.version }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $ver = $env:WORKSPACE_VERSION
+          $target = "${{ matrix.rust_target }}"
+          $stem = "munin-rs-$target-$ver"
+          $stage = "release-stage"
+          $payload = Join-Path $stage $stem
+          New-Item -ItemType Directory -Force -Path $payload | Out-Null
+
+          $built = "target/$target/release"
+          Copy-Item "$built/munin-jsonlog.exe"    -Destination $payload -Force
+          Copy-Item "$built/munin-binlog-mcp.exe" -Destination $payload -Force
+          Copy-Item "LICENSE"                     -Destination $payload -Force
+
+          # Minimal top-level README inside the zip; the real docs live
+          # in the repo / Marketplace listing.
+          $readme = @"
+          munin-rs $ver -- $target
+
+          This archive contains two standalone Windows binaries:
+
+            munin-jsonlog.exe     Convert MSBuild .binlog <-> munin .jsonlog,
+                                  and run the C++ build analyzer
+                                  (analyze-cpp subcommand). Glob inputs
+                                  ('**/*.binlog') and -v progress supported.
+
+            munin-binlog-mcp.exe  MCP server for querying .binlog files from
+                                  Copilot Chat / any MCP-capable client.
+                                  Usually consumed via the VS Code extension
+                                  but can be run directly.
+
+          Drop these into any directory on PATH. Source, docs, and the
+          changelog: https://github.com/MikeGrier/munin-rs
+          "@
+          Set-Content -Encoding utf8 -Path (Join-Path $payload "README.txt") -Value $readme
+
+          # Zip the staged payload.
+          $zip = Join-Path $stage "$stem.zip"
+          Compress-Archive -Path "$payload\*" -DestinationPath $zip -Force
+
+          # Per-binary copies with version + target in the name, so a
+          # caller can grab just one .exe without unzipping.
+          $jsonlogStandalone = Join-Path $stage "munin-jsonlog-$target-$ver.exe"
+          $mcpStandalone     = Join-Path $stage "munin-binlog-mcp-$target-$ver.exe"
+          Copy-Item "$built/munin-jsonlog.exe"    -Destination $jsonlogStandalone -Force
+          Copy-Item "$built/munin-binlog-mcp.exe" -Destination $mcpStandalone -Force
+
+          # SHA-256 manifest covering every artifact this leg produces.
+          $manifest = Join-Path $stage "$stem.zip.sha256"
+          Get-FileHash -Algorithm SHA256 $zip, $jsonlogStandalone, $mcpStandalone |
+              ForEach-Object { "{0}  {1}" -f $_.Hash.ToLower(), (Split-Path -Leaf $_.Path) } |
+              Set-Content -Encoding ascii -Path $manifest
+
+          # Expose paths to subsequent steps.
+          "stage_dir=$stage"              >> $env:GITHUB_OUTPUT
+          "zip=$zip"                      >> $env:GITHUB_OUTPUT
+          "jsonlog_exe=$jsonlogStandalone" >> $env:GITHUB_OUTPUT
+          "mcp_exe=$mcpStandalone"        >> $env:GITHUB_OUTPUT
+          "sha256=$manifest"              >> $env:GITHUB_OUTPUT
+          "stem=$stem"                    >> $env:GITHUB_OUTPUT
+
+      - name: Upload workflow artifact (${{ matrix.rust_target }})
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.stage.outputs.stem }}
+          path: |
+            ${{ steps.stage.outputs.zip }}
+            ${{ steps.stage.outputs.jsonlog_exe }}
+            ${{ steps.stage.outputs.mcp_exe }}
+            ${{ steps.stage.outputs.sha256 }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload assets to GitHub Release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          ZIP_PATH: ${{ steps.stage.outputs.zip }}
+          JSONLOG_PATH: ${{ steps.stage.outputs.jsonlog_exe }}
+          MCP_PATH: ${{ steps.stage.outputs.mcp_exe }}
+          SHA_PATH: ${{ steps.stage.outputs.sha256 }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          # release-please already created the release for this tag.
+          # --clobber so reruns overwrite instead of erroring on
+          # "asset already exists".
+          gh release upload $env:TAG `
+              $env:ZIP_PATH `
+              $env:JSONLOG_PATH `
+              $env:MCP_PATH `
+              $env:SHA_PATH `
+              --clobber

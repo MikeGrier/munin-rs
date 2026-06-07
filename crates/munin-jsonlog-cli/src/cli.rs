@@ -11,6 +11,11 @@ use clap::{Parser, Subcommand};
 pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
+
+    /// Print per-input progress (e.g. `[2/7] foo.binlog -> foo.cpp.json`)
+    /// to stderr as each glob-expanded input is processed.
+    #[arg(short = 'v', long = "verbose", global = true)]
+    pub verbose: bool,
 }
 
 /// Top-level subcommands.
@@ -20,6 +25,9 @@ pub enum Command {
     Dump(DumpArgs),
     /// Read a `.jsonlog`, optionally redact, and write a `.binlog`.
     Pack(PackArgs),
+    /// Read a C++ `.binlog`, run the `munin-cppbuild` pipeline, and
+    /// write a `CppBuildAnalysis` JSON document.
+    AnalyzeCpp(AnalyzeCppArgs),
 }
 
 /// Shared redaction flags for `dump` and `pack`.
@@ -48,11 +56,19 @@ pub struct RedactArgs {
 /// `dump` subcommand: `.binlog` → `.jsonlog`.
 #[derive(Debug, clap::Args)]
 pub struct DumpArgs {
-    /// Path to the input `.binlog`.
-    pub input: std::path::PathBuf,
+    /// One or more input `.binlog` paths or glob patterns. Patterns
+    /// containing `*`, `?`, or `[` are expanded; `**` recurses into
+    /// subdirectories. A pattern that matches no files is an error.
+    #[arg(required = true, value_name = "INPUT")]
+    pub input: Vec<String>,
 
-    /// Output path. Defaults to stdout when omitted.
-    #[arg(short = 'o', long = "output", value_name = "FILE")]
+    /// Output destination.
+    ///
+    /// - With a single input: file path, or stdout when omitted.
+    /// - With multiple inputs: an existing directory that receives
+    ///   one `<stem>.jsonlog` per input. When omitted, outputs are
+    ///   written next to each input.
+    #[arg(short = 'o', long = "output", value_name = "FILE|DIR")]
     pub output: Option<std::path::PathBuf>,
 
     /// Pretty-print the jsonlog output.
@@ -66,13 +82,65 @@ pub struct DumpArgs {
 /// `pack` subcommand: `.jsonlog` → `.binlog`.
 #[derive(Debug, clap::Args)]
 pub struct PackArgs {
-    /// Path to the input `.jsonlog`.
-    pub input: std::path::PathBuf,
+    /// One or more input `.jsonlog` paths or glob patterns. Patterns
+    /// containing `*`, `?`, or `[` are expanded; `**` recurses into
+    /// subdirectories. A pattern that matches no files is an error.
+    #[arg(required = true, value_name = "INPUT")]
+    pub input: Vec<String>,
 
-    /// Output path. Defaults to stdout when omitted.
-    #[arg(short = 'o', long = "output", value_name = "FILE")]
+    /// Output destination.
+    ///
+    /// - With a single input: file path, or stdout when omitted.
+    /// - With multiple inputs: an existing directory that receives
+    ///   one `<stem>.binlog` per input. When omitted, outputs are
+    ///   written next to each input.
+    #[arg(short = 'o', long = "output", value_name = "FILE|DIR")]
     pub output: Option<std::path::PathBuf>,
 
     #[command(flatten)]
     pub redact: RedactArgs,
+}
+
+/// `analyze-cpp` subcommand: `.binlog` → `CppBuildAnalysis` JSON.
+#[derive(Debug, clap::Args)]
+pub struct AnalyzeCppArgs {
+    /// One or more input `.binlog` paths or glob patterns. Patterns
+    /// containing `*`, `?`, or `[` are expanded; `**` recurses into
+    /// subdirectories. A pattern that matches no files is an error.
+    #[arg(required = true, value_name = "INPUT")]
+    pub input: Vec<String>,
+
+    /// Output destination.
+    ///
+    /// - With a single input: file path, or stdout when omitted.
+    /// - With multiple inputs: an existing directory that receives
+    ///   one `<stem>.cpp.json` per input. When omitted, outputs are
+    ///   written next to each input.
+    #[arg(short = 'o', long = "output", value_name = "FILE|DIR")]
+    pub output: Option<std::path::PathBuf>,
+
+    /// Path-root entry. Repeatable. Two forms are accepted:
+    ///
+    /// - `NAME=PATH` — root named `NAME` pointing at `PATH`.
+    /// - `PATH` — root named after the leaf component of `PATH`.
+    #[arg(long = "root", value_name = "[NAME=]PATH")]
+    pub root: Vec<String>,
+
+    /// Auto-detect a single root from the longest common parent
+    /// directory of every project file in the binlog. Appended to
+    /// any `--root` entries supplied explicitly. No-op when the
+    /// binlog has no projects or the only common prefix is a drive
+    /// letter / UNC share.
+    #[arg(long = "auto-root")]
+    pub auto_root: bool,
+
+    /// Pretty-print the JSON output.
+    #[arg(long)]
+    pub pretty: bool,
+
+    /// Fail the command if any CL task's `/showIncludes` stream is
+    /// in a locale the parser does not understand. Default: emit
+    /// an empty include tree for unsupported locales (best-effort).
+    #[arg(long = "locale-strict")]
+    pub locale_strict: bool,
 }

@@ -6,11 +6,12 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 **Munin is a Rust toolkit for working with MSBuild binary log (`.binlog`)
-files.** It ships two crates and a VS Code extension:
+files.** It ships several crates and a VS Code extension:
 
 | Crate | What it is |
 |---|---|
 | [`munin-msbuild`](crates/munin-msbuild) | Reader and seekable indexed data model for `.binlog` files. |
+| [`munin-cppbuild`](crates/munin-cppbuild) | C++ build analysis: extracts per-project sources, defines, includes, and link inputs from `.vcxproj` binlogs. |
 | [`munin-binlog-mcp`](crates/munin-binlog-mcp) | MCP (Model Context Protocol) server that exposes binlog queries to AI agents like GitHub Copilot. |
 | [`munin-jsonlog-cli`](crates/munin-jsonlog-cli) | CLI (`munin-jsonlog`) for converting between `.binlog` and munin's `.jsonlog` format, with built-in redaction. |
 | [`Munin Binlog MCP` VS Code extension](crates/munin-binlog-mcp/extension) | Bundles the MCP server and registers it with VS Code automatically. |
@@ -18,16 +19,30 @@ files.** It ships two crates and a VS Code extension:
 The format itself is documented in the MSBuild repository:
 <https://github.com/dotnet/msbuild/blob/main/documentation/wiki/Binary-Log.md>
 
+### C++ build analysis
+
+For C++ (`.vcxproj`) builds captured with `cl.exe /showIncludes` and
+`link.exe /VERBOSE` enabled, the
+[`munin-jsonlog analyze-cpp`](crates/munin-jsonlog-cli) subcommand
+produces a structured JSON document describing every translation unit
+(command line, defines, include paths, resolved include tree, consumed
+headers) and every link invocation (command line, consumed inputs,
+dropped inputs) per project. See
+[`crates/munin-cppbuild`](crates/munin-cppbuild) for the library API
+and [`crates/munin-jsonlog-cli/README.md`](crates/munin-jsonlog-cli/README.md)
+for CLI usage.
+
 ## Repository layout
 
 ```
 crates/
   munin-msbuild/               # core .binlog reader + index (library)
+  munin-cppbuild/              # C++ build analysis (library)
   munin-binlog-mcp/            # MCP server binary + library
     extension/                 # VS Code extension that bundles the binary
   munin-jsonlog-cli/           # munin-jsonlog CLI: binlog <-> jsonlog with redaction
 .github/
-  workflows/                   # ci, build-extension, release-please, publish-extension
+  workflows/                   # ci, build-extension, release-please, publish-extension, release-binaries
   actions/workspace-version/   # composite action that reads workspace version
 tools/
   check-encoding.ps1           # CI guard against encoding corruption
@@ -56,6 +71,31 @@ The MCP server binary is produced at `target/release/munin-binlog-mcp.exe`.
 See [`crates/munin-binlog-mcp/README.md`](crates/munin-binlog-mcp/README.md)
 for the tool reference and an `mcp.json` snippet that points VS Code at a
 local build.
+
+## Prebuilt binaries
+
+Every tagged release publishes standalone Windows binaries (no Rust
+toolchain required) for `x86_64-pc-windows-msvc` and
+`aarch64-pc-windows-msvc`:
+<https://github.com/MikeGrier/munin-rs/releases/latest>
+
+Each release attaches, per target:
+
+- `munin-rs-<target>-<version>.zip` — both binaries + `LICENSE` + a
+  short `README.txt`.
+- `munin-jsonlog-<target>-<version>.exe` — standalone CLI binary.
+- `munin-binlog-mcp-<target>-<version>.exe` — standalone MCP server.
+- `munin-rs-<target>-<version>.zip.sha256` — SHA-256 manifest for the
+  three files above.
+
+From another machine you can grab them with the GitHub CLI:
+
+```powershell
+gh release download --repo MikeGrier/munin-rs `
+    --pattern "munin-jsonlog-x86_64-pc-windows-msvc-*.exe"
+```
+
+or with PowerShell against the asset URL directly.
 
 ## VS Code extension
 

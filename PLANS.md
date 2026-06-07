@@ -1,8 +1,10 @@
 <!-- Copyright (c) Michael Grier -->
 # Active Plans
 
+_No active plans._
+
 | Path to CHECKLIST.md | Status | Brief description | Design Notes |
 |----------------------|--------|-------------------|--------------|
 
-_No active plans._ See [COMPLETED-PLANS.md](COMPLETED-PLANS.md) for the
-history of completed work.
+See [COMPLETED-PLANS.md](COMPLETED-PLANS.md) for the history of
+completed work.

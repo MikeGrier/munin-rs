@@ -12,6 +12,14 @@
                     "path": "crates/munin-binlog-mcp/Cargo.toml"
                 },
                 {
+                    "type": "generic",
+                    "path": "crates/munin-jsonlog-cli/Cargo.toml"
+                },
+                {
+                    "type": "generic",
+                    "path": "crates/munin-cppbuild/Cargo.toml"
+                },
+                {
                     "type": "json",
                     "path": "crates/munin-binlog-mcp/extension/package.json",
                     "jsonpath": "$.version"
