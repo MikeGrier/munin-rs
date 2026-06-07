@@ -335,7 +335,7 @@ dependencies = [
 
 [[package]]
 name = "munin-binlog-mcp"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "munin-msbuild",
  "serde",
@@ -344,7 +344,7 @@ dependencies = [
 
 [[package]]
 name = "munin-cppbuild"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "munin-msbuild",
  "serde",
@@ -353,7 +353,7 @@ dependencies = [
 
 [[package]]
 name = "munin-jsonlog-cli"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "assert_cmd",
  "clap",
@@ -366,7 +366,7 @@ dependencies = [
 
 [[package]]
 name = "munin-msbuild"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "base64",
  "flate2",
