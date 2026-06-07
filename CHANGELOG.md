@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.0](https://github.com/MikeGrier/munin-rs/compare/v0.3.1...v0.4.0) (2026-06-07)
+
+
+### Features
+
+* glob inputs, -v progress, C++ build analysis, prebuilt release binaries ([10255d6](https://github.com/MikeGrier/munin-rs/commit/10255d6356c22155a5ddc7fbe841de3cd78f7c67))
+
+
+### Bug Fixes
+
+* address review thread feedback and CI build failure ([ca112cd](https://github.com/MikeGrier/munin-rs/commit/ca112cd350c97dfb7d36ac73aebf1eab773a146f))
+
 ## [0.3.1](https://github.com/MikeGrier/munin-rs/compare/v0.3.0...v0.3.1) (2026-06-02)
 
 
