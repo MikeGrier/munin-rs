@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.1](https://github.com/MikeGrier/munin-rs/compare/v0.4.0...v0.4.1) (2026-06-07)
+
+
+### Bug Fixes
+
+* **ci:** pin toolchain and re-add cross target in release workflows ([facbffa](https://github.com/MikeGrier/munin-rs/commit/facbffa2e7c74463ddd2e88cf66daa77f7d53e8f))
+* **ci:** pin toolchain and re-add cross target in release workflows ([c94b5fa](https://github.com/MikeGrier/munin-rs/commit/c94b5fa0b2f7b650d6cc33d8deeb05a81f0bbca8))
+* trigger release-please patch bump ([130ff3e](https://github.com/MikeGrier/munin-rs/commit/130ff3eb8468f64d1f18f934f99449a09d4d3d9b))
+
 ## [0.4.0](https://github.com/MikeGrier/munin-rs/compare/v0.3.1...v0.4.0) (2026-06-07)
 
 
