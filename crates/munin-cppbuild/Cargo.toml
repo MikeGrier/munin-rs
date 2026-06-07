@@ -17,7 +17,7 @@ homepage.workspace      = true
 documentation.workspace = true
 
 [dependencies]
-munin-msbuild = { path = "../munin-msbuild", version = "0.3.1" } # x-release-please-version
+munin-msbuild = { path = "../munin-msbuild", version = "0.4.0" } # x-release-please-version
 serde       = { workspace = true }
 serde_json  = { workspace = true }
 
