@@ -64,7 +64,16 @@ jobs:
       - name: Install Rust toolchain (${{ matrix.rust_target }})
         uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: "1.95.0"
           targets: ${{ matrix.rust_target }}
+
+      # Belt-and-suspenders: when `rust-toolchain.toml` selects the active
+      # toolchain inside the workspace, the target added by the action above
+      # may not be visible to the rust-toolchain.toml-selected install.
+      # Re-add explicitly under the workspace toolchain.
+      - name: rustup target add ${{ matrix.rust_target }}
+        working-directory: ${{ github.workspace }}
+        run: rustup target add ${{ matrix.rust_target }}
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
